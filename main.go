@@ -93,15 +93,20 @@ func main() {
 	//}
 }
 
+// Visitor is a struct that runs a particular mutation case on the ast.Package.
 type Visitor struct {
 	tmpDir      string
 	fset        *token.FileSet
 	pkgs        []*ast.Package
 	mutantCount int
 	mutantKill  int
-	mutator     func(ast.Node, func())
+	// this function should make a change to the ast.Node, call the 2nd argument
+	// function and change it back into the original ast.Node.
+	mutator func(ast.Node, func())
 }
 
+// TestMutant take the current ast.Package, writes it to a new mutant package
+// and test it.
 func (v *Visitor) TestMutant() {
 	// create the mutant dir
 	mutantDir := v.tmpDir + string(os.PathSeparator) + strconv.Itoa(v.mutantCount)
@@ -126,16 +131,21 @@ func (v *Visitor) TestMutant() {
 		}
 	}
 
+	// execute `go test` in that folder, the GOPATH can stay the same as the
+	// callers.
+	// BUG(hydroflame): when the test package is called *_test this will fail to
+	// import the actual mutant, make the GOPATH var of the cmd be
+	// `GOPATH=mutantDir:ActualGOPATH`
 	cmd := exec.Command("go", "test")
 	cmd.Dir = mutantDir
-	if err := cmd.Run(); err != nil {
-		v.mutantCount++
-		if getExitCode(err) == 0 {
-			v.mutantKill++
-		}
+	v.mutantCount++
+	if getExitCode(err) == 0 {
+		v.mutantKill++
 	}
 }
 
+// getExitCode returns the exit code of an error returned by os/exec.Cmd.Run()
+// or zero if the error is nil.
 func getExitCode(err error) int {
 	if err == nil {
 		return 0
@@ -146,11 +156,15 @@ func getExitCode(err error) int {
 	}
 }
 
+// Visit simply forwards the node to the mutator func of the visitor. This
+// function makes *Visitor implement the ast.Visitor interface.
 func (v *Visitor) Visit(node ast.Node) (w ast.Visitor) {
 	v.mutator(node, v.TestMutant)
 	return v
 }
 
+// swapIfElse swaps an ast node if body with the following else statement, if it
+// exists, it will not swap the else if body of an if/else if node.
 func swapIfElse(node ast.Node, testMutant func()) {
 	if ifstmt, ok := node.(*ast.IfStmt); ok {
 		if ifstmt.Else != nil {
