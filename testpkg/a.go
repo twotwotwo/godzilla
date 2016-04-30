@@ -8,4 +8,12 @@ func Foo() int {
 	} else {
 		return 3
 	}
+	switch a {
+	case 5:
+		return 2
+	case 5:
+		return 4
+	default:
+		return 3
+	}
 }

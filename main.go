@@ -95,11 +95,16 @@ func main() {
 
 // Visitor is a struct that runs a particular mutation case on the ast.Package.
 type Visitor struct {
-	tmpDir      string
-	fset        *token.FileSet
-	pkgs        []*ast.Package
+	// the directory that this mutant should test into.
+	tmpDir string
+	fset   *token.FileSet
+	// the packages, either len is 1 or 2, if it's 2 its because we have x and
+	// x_test
+	pkgs []*ast.Package
+	// total number of mutant generated.
 	mutantCount int
-	mutantKill  int
+	// total number of mutant killed.
+	mutantKill int
 	// this function should make a change to the ast.Node, call the 2nd argument
 	// function and change it back into the original ast.Node.
 	mutator func(ast.Node, func())
@@ -136,6 +141,8 @@ func (v *Visitor) TestMutant() {
 	// BUG(hydroflame): when the test package is called *_test this will fail to
 	// import the actual mutant, make the GOPATH var of the cmd be
 	// `GOPATH=mutantDir:ActualGOPATH`
+	// BUG(hydroflame): verify that the code actually compiles before attempting
+	// to test it. Some mutator might produce invalid code.
 	cmd := exec.Command("go", "test")
 	cmd.Dir = mutantDir
 	v.mutantCount++
@@ -166,12 +173,20 @@ func (v *Visitor) Visit(node ast.Node) (w ast.Visitor) {
 // swapIfElse swaps an ast node if body with the following else statement, if it
 // exists, it will not swap the else if body of an if/else if node.
 func swapIfElse(node ast.Node, testMutant func()) {
+	// if its an if statement node
 	if ifstmt, ok := node.(*ast.IfStmt); ok {
+		// if theres an else
 		if ifstmt.Else != nil {
+			// if the else is not part of a elseif
 			if el, ok := ifstmt.Else.(*ast.BlockStmt); ok {
+				// swap their body
 				ifstmt.Else = ifstmt.Body
 				ifstmt.Body = el
+				// test that mutant
 				testMutant()
+				// swap back
+				ifstmt.Body = ifstmt.Else
+				ifstmt.Else = el
 			}
 		}
 	}
