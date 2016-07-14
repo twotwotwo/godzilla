@@ -7,9 +7,11 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
+	"golang.org/x/tools/cover"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -23,11 +25,50 @@ const (
 
 var sep = string(os.PathSeparator)
 
+type config struct {
+	// The importable name of the package to irradiate.
+	pkg string
+
+	// The full system path to the target package
+	pkgFull string
+
+	// A reference to the user gopath
+	gopath string
+}
+
+func getRunConfig() config {
+	// Check that we have a GOPATH
+	gopath, exists := os.LookupEnv("GOPATH")
+	if !exists {
+		fmt.Fprint(os.Stderr, "$GOPATH not set")
+		os.Exit(1)
+	}
+
+	// find the package to mutest.
+	var pkg string
+	if len(os.Args) == 2 {
+		pkg = os.Args[1]
+	} else {
+		wd, err := os.Getwd()
+		if err != nil {
+			fmt.Fprint(os.Stderr, err)
+			os.Exit(1)
+		}
+		// no need to use os.PathSeparator here because len(`/`) == len(`\`)
+		pkg = wd[len(gopath)+len(`/src/`):]
+	}
+	return config{
+		pkg:     pkg,
+		gopath:  gopath,
+		pkgFull: filepath.Join(gopath, "src", pkg),
+	}
+}
+
 // sanityCheck verifies that the pkg we are trying to mutest compiles and that
 // the tests pass.
-func sanityCheck(gopath, pkg string) {
+func sanityCheck(cfg config) {
 	{ // verify it compiles
-		cmd := exec.Command("go", "build", pkg)
+		cmd := exec.Command("go", "build", cfg.pkg)
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
 		if err != nil {
@@ -38,7 +79,7 @@ func sanityCheck(gopath, pkg string) {
 		exec.Command("go", "clean").Run()
 	}
 	{ // verify tests pass
-		cmd := exec.Command("go", "test", "-short", pkg)
+		cmd := exec.Command("go", "test", "-short", cfg.pkg)
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
 		if err != nil {
@@ -47,8 +88,7 @@ func sanityCheck(gopath, pkg string) {
 		}
 	}
 	{ // verify that everything is already gofmt -s before
-		dir := gopath + sep + "src" + sep + pkg
-		finfos, err := ioutil.ReadDir(dir)
+		finfos, err := ioutil.ReadDir(cfg.pkgFull)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, err.Error())
 			os.Exit(1)
@@ -58,40 +98,45 @@ func sanityCheck(gopath, pkg string) {
 			if !strings.HasSuffix(finfo.Name(), ".go") {
 				continue
 			}
-			cmd := exec.Command("gofmt", "-d", dir+sep+finfo.Name())
+			cmd := exec.Command("gofmt", "-d", filepath.Join(cfg.pkgFull, finfo.Name()))
 			var b bytes.Buffer
 			cmd.Stdout = &b
 			if err := cmd.Run(); err != nil || b.Len() > 0 {
-				fmt.Printf("gofmt your package before running godzilla\n	gofmt -s -w %s*.go\n", dir+sep)
+				fmt.Printf("gofmt your package before running godzilla\n	gofmt -s -w %s\n", filepath.Join(cfg.pkgFull, "*go"))
 				os.Exit(1)
 			}
 		}
 	}
 }
 
-func main() {
-	// Check that we have a GOPATH
-	gopath, exists := os.LookupEnv("GOPATH")
-	if !exists {
-		fmt.Fprint(os.Stderr, "$GOPATH not set")
+func generateCoverprofile(pkg string) []*cover.Profile {
+	f, err := ioutil.TempFile("", "coverprofile")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+	cmd := exec.Command("go", "test", "-short", "-coverprofile", f.Name(), pkg)
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 
-	// find the package to mutest.
-	var pkgName string
-	if len(os.Args) == 2 {
-		pkgName = os.Args[1]
-	} else {
-		wd, err := os.Getwd()
-		if err != nil {
-			fmt.Fprint(os.Stderr, err)
-			os.Exit(1)
-		}
-		// no need to use os.PathSeparator here because len(`/`) == len(`\`)
-		pkgName = wd[len(gopath)+len(`/src/`):]
+	profiles, err := cover.ParseProfiles(f.Name())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
 	}
 
-	sanityCheck(gopath, pkgName)
+	return profiles
+}
+
+func main() {
+	cfg := getRunConfig()
+
+	sanityCheck(cfg)
+
+	coverprofiles := generateCoverprofile(cfg.pkg)
+	_ = coverprofiles
 
 	// Create a temporary location to store all the mutated code
 	tmpDir, err := ioutil.TempDir("", "godzilla")
@@ -103,7 +148,7 @@ func main() {
 
 	var workers []worker
 	results := make(chan Result)
-	pkgPath := gopath + sep + "src" + sep + pkgName
+	pkgPath := cfg.gopath + sep + "src" + sep + cfg.pkg
 	// generate the mutation worker.
 	for n := 0; n < runtime.NumCPU(); n++ {
 		workdir := tmpDir + sep + workdirPrefix + strconv.Itoa(n)
@@ -147,7 +192,11 @@ func main() {
 	fmt.Printf("score: %d/%d = %.2f\n", res.total-res.alive, res.total, float64(res.total-res.alive)/float64(res.total))
 }
 
+// Mutator is an operation that can be applied to go source to mutate it.
 type Mutator func(ast.Node, func())
+
+// Result is the data passed to the aggregator to sum the total number of mutant
+// executed and killed for a particular mutation.
 type Result struct {
 	alive, total int
 }
