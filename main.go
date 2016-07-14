@@ -251,7 +251,12 @@ func (w worker) Mutate(c chan Mutator, wg *sync.WaitGroup) {
 			mutator:     m,
 		}
 
-		ast.Walk(v, pkg)
+		for name, file := range pkg.Files {
+			if strings.HasSuffix(name, "_test.go") {
+				continue
+			}
+			ast.Walk(v, file)
+		}
 		w.results <- Result{
 			alive: v.mutantAlive,
 			total: v.mutantCount,
