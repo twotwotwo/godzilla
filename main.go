@@ -134,7 +134,10 @@ func main() {
 	sanityCheck(cfg)
 
 	coverprofiles := generateCoverprofile(cfg.pkg)
-	_ = coverprofiles
+	for _, profile := range coverprofiles {
+		fmt.Println(*profile)
+	}
+	os.Exit(1)
 
 	// Create a temporary location to store all the mutated code
 	tmpDir, err := ioutil.TempDir("", "godzilla")
