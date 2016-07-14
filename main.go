@@ -342,7 +342,7 @@ func (v *Visitor) TestMutant() {
 			continue
 		}
 		cmd := exec.Command("diff", "-u", v.originalDir+sep+finfo.Name(), v.mutantDir+sep+finfo.Name())
-		//cmd.Stdout = os.Stdout
+		cmd.Stdout = os.Stdout
 		if err := cmd.Run(); err != nil {
 			fmt.Println(err)
 		}
