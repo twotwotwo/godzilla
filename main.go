@@ -134,10 +134,6 @@ func main() {
 	sanityCheck(cfg)
 
 	coverprofiles := generateCoverprofile(cfg.pkg)
-	for _, profile := range coverprofiles {
-		fmt.Println(*profile)
-	}
-	os.Exit(1)
 
 	// Create a temporary location to store all the mutated code
 	tmpDir, err := ioutil.TempDir("", "godzilla")
@@ -159,9 +155,10 @@ func main() {
 			os.Exit(1)
 		}
 		workers = append(workers, worker{
-			mutantDir: workdir,
-			execDir:   pkgPath,
-			results:   results,
+			mutantDir:     workdir,
+			execDir:       pkgPath,
+			results:       results,
+			coverprofiles: coverprofiles,
 		})
 	}
 
@@ -194,7 +191,7 @@ func main() {
 }
 
 // Mutator is an operation that can be applied to go source to mutate it.
-type Mutator func(ast.Node, func())
+type Mutator func(*Visitor, ast.Node, func())
 
 // Result is the data passed to the aggregator to sum the total number of mutant
 // executed and killed for a particular mutation.
@@ -210,6 +207,8 @@ type worker struct {
 	execDir string
 
 	results chan Result
+
+	coverprofiles []*cover.Profile
 }
 
 // Mutate starts mutating the source, it gets the mutators from the given
@@ -247,11 +246,12 @@ func (w worker) Mutate(c chan Mutator, wg *sync.WaitGroup) {
 
 	for m := range c {
 		v := &Visitor{
-			mutantDir:   w.mutantDir,
-			originalDir: w.execDir,
-			fset:        fset,
-			pkgs:        spkgs,
-			mutator:     m,
+			mutantDir:     w.mutantDir,
+			originalDir:   w.execDir,
+			fset:          fset,
+			pkgs:          spkgs,
+			mutator:       m,
+			coverprofiles: w.coverprofiles,
 		}
 
 		for name, file := range pkg.Files {
@@ -260,6 +260,7 @@ func (w worker) Mutate(c chan Mutator, wg *sync.WaitGroup) {
 			}
 			ast.Walk(v, file)
 		}
+
 		w.results <- Result{
 			alive: v.mutantAlive,
 			total: v.mutantCount,
@@ -288,7 +289,9 @@ type Visitor struct {
 
 	// this function should make a change to the ast.Node, call the 2nd argument
 	// function and change it back into the original ast.Node.
-	mutator func(ast.Node, func())
+	mutator Mutator
+
+	coverprofiles []*cover.Profile
 }
 
 // TestMutant take the current ast.Package, writes it to a new mutant package
@@ -371,13 +374,24 @@ func getExitCode(err error) int {
 // Visit simply forwards the node to the mutator func of the visitor. This
 // function makes *Visitor implement the ast.Visitor interface.
 func (v *Visitor) Visit(node ast.Node) ast.Visitor {
-	v.mutator(node, v.TestMutant)
+	if node == nil { // sometimes called with nil for some reason.
+		return v
+	}
+	pos := v.fset.Position(node.Pos())
+	for _, profile := range v.coverprofiles {
+		for _, block := range profile.Blocks {
+			if block.StartLine <= pos.Line && block.EndLine >= pos.Line &&
+				block.StartCol <= pos.Column && block.EndCol >= pos.Column {
+				v.mutator(v, node, v.TestMutant)
+			}
+		}
+	}
 	return v
 }
 
 // swapIfElse swaps an ast node if body with the following else statement, if it
 // exists, it will not swap the else if body of an if/else if node.
-func swapIfElse(node ast.Node, testMutant func()) {
+func swapIfElse(v *Visitor, node ast.Node, testMutant func()) {
 	// if its an if statement node
 	if ifstmt, ok := node.(*ast.IfStmt); ok {
 		// if theres an else
@@ -409,7 +423,7 @@ var conditionalsBoundaryMutatorTable = map[token.Token]token.Token{
 //	<= to <
 //	>  to >=
 //	>= to >
-func ConditionalsBoundaryMutator(node ast.Node, testMutant func()) {
+func ConditionalsBoundaryMutator(v *Visitor, node ast.Node, testMutant func()) {
 	if expr, ok := node.(*ast.BinaryExpr); ok {
 		old := expr.Op
 		op, ok := conditionalsBoundaryMutatorTable[expr.Op]
@@ -452,7 +466,7 @@ var mathMutatorTable = map[token.Token]token.Token{
 //	<<  to >>
 //	>>  to <<
 //	>>> to <<
-func MathMutator(node ast.Node, testMutant func()) {
+func MathMutator(v *Visitor, node ast.Node, testMutant func()) {
 	if expr, ok := node.(*ast.BinaryExpr); ok {
 		old := expr.Op
 		op, ok := mathMutatorTable[expr.Op]
@@ -484,7 +498,7 @@ var mathAssignementMutatorTable = map[token.Token]token.Token{
 }
 
 // MathAssignMutator acts like MathMutator but on assignements.
-func MathAssignMutator(node ast.Node, testMutant func()) {
+func MathAssignMutator(v *Visitor, node ast.Node, testMutant func()) {
 	if assign, ok := node.(*ast.AssignStmt); ok {
 		old := assign.Tok
 		op, ok := mathAssignementMutatorTable[assign.Tok]
@@ -509,7 +523,7 @@ var negateConditionalsMutatorTable = map[token.Token]token.Token{
 }
 
 // NegateConditionalsMutator negates some boolean checks
-func NegateConditionalsMutator(node ast.Node, testMutant func()) {
+func NegateConditionalsMutator(v *Visitor, node ast.Node, testMutant func()) {
 	if expr, ok := node.(*ast.BinaryExpr); ok {
 		old := expr.Op
 		op, ok := negateConditionalsMutatorTable[expr.Op]
