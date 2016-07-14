@@ -167,8 +167,13 @@ func main() {
 	}
 
 	// build all the mutators
-	mutators := []Mutator{swapIfElse, ConditionalsBoundaryMutator,
-		MathMutator, MathAssignMutator}
+	mutators := []Mutator{
+		swapIfElse,
+		ConditionalsBoundaryMutator,
+		MathMutator,
+		MathAssignMutator,
+		VoidCallRemoverMutator,
+	}
 	c := make(chan Mutator, len(mutators))
 	for _, mutator := range mutators {
 		c <- mutator
@@ -338,7 +343,7 @@ func (v *Visitor) TestMutant() {
 	for _, pkg := range v.pkgs {
 		for fullFileName, astFile := range pkg.Files {
 			fileName := filepath.Base(fullFileName)
-			file, err := os.OpenFile(filepath.Join(v.mutantDir, fileName), os.O_CREATE|os.O_RDWR, 0700)
+			file, err := os.OpenFile(filepath.Join(v.mutantDir, fileName), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0700)
 			if err != nil {
 				panic(err)
 			}
@@ -432,6 +437,9 @@ func (v *Visitor) Visit(node ast.Node) ast.Visitor {
 
 // VoidCallRemoverMutator removes calls to void function/methods
 func VoidCallRemoverMutator(v *Visitor, node ast.Node, testMutant func()) {
+	if block, ok := node.(*ast.BlockStmt); ok {
+		_ = block
+	}
 	/*
 		Types:      make(map[ast.Expr]types.TypeAndValue),
 		Defs:       make(map[*ast.Ident]types.Object),
