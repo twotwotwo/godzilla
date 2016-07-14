@@ -1,6 +1,7 @@
 package testpkg
 
 func (A) Foo() int {
+	Mii()
 	if a == 5 {
 		b := 2
 		b -= 0
@@ -27,9 +28,13 @@ type Fooer interface {
 
 type A struct{}
 
+func Mii() {}
+
 func Bar() int {
 	var a A
-	return a.Foo()
+	Mii()
+	a.Foo()
+	return 3
 }
 
 func Zoo1(a, b int) {

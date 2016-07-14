@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
+	"go/importer"
 	"go/parser"
 	"go/printer"
 	"go/token"
+	"go/types"
 	"golang.org/x/tools/cover"
 	"io/ioutil"
 	"os"
@@ -147,7 +149,9 @@ func main() {
 	results := make(chan Result)
 	pkgPath := filepath.Join(cfg.gopath, "src", cfg.pkg)
 	// generate the mutation worker.
-	for n := 0; n < runtime.NumCPU(); n++ {
+	//for n := 0; n < runtime.NumCPU(); n++ {
+	_ = runtime.Compiler
+	for n := 0; n < 1; n++ {
 		workdir := filepath.Join(tmpDir, workdirPrefix+strconv.Itoa(n))
 		err := os.Mkdir(workdir, 0755)
 		if err != nil {
@@ -211,6 +215,34 @@ type worker struct {
 	coverprofiles []*cover.Profile
 }
 
+// Visitor is a struct that runs a particular mutation case on the ast.Package.
+type Visitor struct {
+	// the directory that this mutant should test into.
+	mutantDir string
+
+	originalDir string
+
+	fset *token.FileSet
+
+	// the packages, either len is 1 or 2, if it's 2 its because we have {{.}}
+	// and {{.}}_test
+	pkgs []*ast.Package
+
+	// total number of mutant generated.
+	mutantCount int
+
+	// total number of mutant killed.
+	mutantAlive int
+
+	// this function should make a change to the ast.Node, call the 2nd argument
+	// function and change it back into the original ast.Node.
+	mutator Mutator
+
+	coverprofiles []*cover.Profile
+
+	info *types.Info
+}
+
 // Mutate starts mutating the source, it gets the mutators from the given
 // channel.
 func (w worker) Mutate(c chan Mutator, wg *sync.WaitGroup) {
@@ -219,8 +251,8 @@ func (w worker) Mutate(c chan Mutator, wg *sync.WaitGroup) {
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, w.execDir, nil, parser.AllErrors)
 	if err != nil {
-		// the code compiled, or one of the mutant did not invert their
-		// changes correctly
+		// the code compiled, so one of the mutant did not invert their changes
+		// correctly.
 		panic(err)
 	}
 
@@ -244,6 +276,36 @@ func (w worker) Mutate(c chan Mutator, wg *sync.WaitGroup) {
 		files = append(files, file)
 	}
 
+	info := &types.Info{
+		Types:      make(map[ast.Expr]types.TypeAndValue),
+		Defs:       make(map[*ast.Ident]types.Object),
+		Uses:       make(map[*ast.Ident]types.Object),
+		Implicits:  make(map[ast.Node]types.Object),
+		Selections: make(map[*ast.SelectorExpr]*types.Selection),
+		Scopes:     make(map[ast.Node]*types.Scope),
+	}
+
+	conf := types.Config{Importer: importer.Default()}
+	_, err = conf.Check(pkg.Name, fset, files, info)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error)
+		return
+	}
+
+	/*for k, def := range info.Defs {
+		fmt.Printf("%q %q\n", func() string {
+			if k != nil {
+				return k.String()
+			}
+			return ""
+		}(), func() string {
+			if def != nil {
+				return def.String()
+			}
+			return ""
+		}())
+	}*/
+
 	for m := range c {
 		v := &Visitor{
 			mutantDir:     w.mutantDir,
@@ -252,6 +314,7 @@ func (w worker) Mutate(c chan Mutator, wg *sync.WaitGroup) {
 			pkgs:          spkgs,
 			mutator:       m,
 			coverprofiles: w.coverprofiles,
+			info:          info,
 		}
 
 		for name, file := range pkg.Files {
@@ -266,32 +329,6 @@ func (w worker) Mutate(c chan Mutator, wg *sync.WaitGroup) {
 			total: v.mutantCount,
 		}
 	}
-}
-
-// Visitor is a struct that runs a particular mutation case on the ast.Package.
-type Visitor struct {
-	// the directory that this mutant should test into.
-	mutantDir string
-
-	originalDir string
-	// the Fileset, not sure what that does tbh. It's for ast.
-	fset *token.FileSet
-
-	// the packages, either len is 1 or 2, if it's 2 its because we have {{.}}
-	// and {{.}}_test
-	pkgs []*ast.Package
-
-	// total number of mutant generated.
-	mutantCount int
-
-	// total number of mutant killed.
-	mutantAlive int
-
-	// this function should make a change to the ast.Node, call the 2nd argument
-	// function and change it back into the original ast.Node.
-	mutator Mutator
-
-	coverprofiles []*cover.Profile
 }
 
 // TestMutant take the current ast.Package, writes it to a new mutant package
@@ -377,16 +414,32 @@ func (v *Visitor) Visit(node ast.Node) ast.Visitor {
 	if node == nil { // sometimes called with nil for some reason.
 		return v
 	}
+	// only call the mutator if the code will ever be executed. Non-executed
+	// code is considered alive mutants, but don't bother checking or displaying
+	// the modification because code coverage shows you already what isn't
+	// covered in your code.
 	pos := v.fset.Position(node.Pos())
 	for _, profile := range v.coverprofiles {
 		for _, block := range profile.Blocks {
-			if block.StartLine <= pos.Line && block.EndLine >= pos.Line &&
-				block.StartCol <= pos.Column && block.EndCol >= pos.Column {
+			if (block.StartLine < pos.Line || (block.StartLine == pos.Line && pos.Column >= block.StartCol)) &&
+				(block.EndLine > pos.Line || (block.EndLine == pos.Line && pos.Column <= block.EndCol)) {
 				v.mutator(v, node, v.TestMutant)
 			}
 		}
 	}
 	return v
+}
+
+// VoidCallRemoverMutator removes calls to void function/methods
+func VoidCallRemoverMutator(v *Visitor, node ast.Node, testMutant func()) {
+	/*
+		Types:      make(map[ast.Expr]types.TypeAndValue),
+		Defs:       make(map[*ast.Ident]types.Object),
+		Uses:       make(map[*ast.Ident]types.Object),
+		Implicits:  make(map[ast.Node]types.Object),
+		Selections: make(map[*ast.SelectorExpr]*types.Selection),
+		Scopes:     make(map[ast.Node]*types.Scope),
+	*/
 }
 
 // swapIfElse swaps an ast node if body with the following else statement, if it

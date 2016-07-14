@@ -11,6 +11,10 @@ func TestFoo(t *testing.T) {
 	}
 }
 
-func TestBar(t *testing.T)  {}
+func TestBar(t *testing.T) {
+	if Bar() != 3 {
+		t.Error("")
+	}
+}
 func TestZoo1(t *testing.T) {}
 func TestZoo2(t *testing.T) {}
