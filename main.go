@@ -23,8 +23,6 @@ const (
 	workdirPrefix = "gopath"
 )
 
-var sep = string(os.PathSeparator)
-
 type config struct {
 	// The importable name of the package to irradiate.
 	pkg string
@@ -148,10 +146,10 @@ func main() {
 
 	var workers []worker
 	results := make(chan Result)
-	pkgPath := cfg.gopath + sep + "src" + sep + cfg.pkg
+	pkgPath := filepath.Join(cfg.gopath, "src", cfg.pkg)
 	// generate the mutation worker.
 	for n := 0; n < runtime.NumCPU(); n++ {
-		workdir := tmpDir + sep + workdirPrefix + strconv.Itoa(n)
+		workdir := filepath.Join(tmpDir, workdirPrefix+strconv.Itoa(n))
 		err := os.Mkdir(workdir, 0755)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, err.Error())
@@ -291,8 +289,8 @@ func (v *Visitor) TestMutant() {
 	// write all ast file to their equivalent in the mutant dir
 	for _, pkg := range v.pkgs {
 		for fullFileName, astFile := range pkg.Files {
-			fileName := fullFileName[strings.LastIndex(fullFileName, sep)+1:]
-			file, err := os.OpenFile(v.mutantDir+sep+fileName, os.O_CREATE|os.O_RDWR, 0700)
+			fileName := filepath.Base(fullFileName)
+			file, err := os.OpenFile(filepath.Join(v.mutantDir, fileName), os.O_CREATE|os.O_RDWR, 0700)
 			if err != nil {
 				panic(err)
 			}
@@ -302,9 +300,10 @@ func (v *Visitor) TestMutant() {
 			}
 			// the output from ast doesn't always conform to gofmt ... so try to
 			// minimize the diff a maximum by gofmting the files.
-			cmd := exec.Command("gofmt", "-w", v.mutantDir+sep+fileName)
+			fileName = filepath.Join(v.mutantDir, fileName)
+			cmd := exec.Command("gofmt", "-w", fileName)
 			if err := cmd.Run(); err != nil {
-				fmt.Println("did not gofmted", v.mutantDir+sep+fileName, err)
+				fmt.Println("did not gofmted", fileName, err)
 				return
 			}
 		}
@@ -341,7 +340,7 @@ func (v *Visitor) TestMutant() {
 		if strings.HasSuffix(finfo.Name(), "_test.go") {
 			continue
 		}
-		cmd := exec.Command("diff", "-u", v.originalDir+sep+finfo.Name(), v.mutantDir+sep+finfo.Name())
+		cmd := exec.Command("diff", "-u", filepath.Join(v.originalDir, finfo.Name()), filepath.Join(v.mutantDir, finfo.Name()))
 		cmd.Stdout = os.Stdout
 		if err := cmd.Run(); err != nil {
 			fmt.Println(err)
