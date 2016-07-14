@@ -3,9 +3,13 @@ package testpkg
 func (A) Foo() int {
 	if a == 5 {
 		b := 2
+		b -= 0
 		return b
 	} else {
 		return 3
+	}
+	if a > 5 {
+		return 0
 	}
 	switch a {
 	case 5:
@@ -23,15 +27,17 @@ type Fooer interface {
 
 type A struct{}
 
-func Bar() {
+func Bar() int {
 	var a A
-	a.Foo()
+	return a.Foo()
 }
 
-func Zoo1() {
+func Zoo1(a, b int) {
 	Zoo2()
 }
 
 func Zoo2() {
-	Zoo1()
+	Zoo1(a, 0)
+	n := Bar()
+	_ = n
 }
