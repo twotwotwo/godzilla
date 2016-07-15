@@ -259,7 +259,7 @@ type Visitor struct {
 
 	coverprofiles []*cover.Profile
 
-	info mutators.TypesInfo
+	info *types.Info
 
 	blocks []cover.ProfileBlock
 }
@@ -346,7 +346,7 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup) {
 				pkgs:          spkgs,
 				mutator:       m,
 				coverprofiles: w.coverprofiles,
-				info:          mutators.TypesInfo{info},
+				info:          info,
 				blocks:        blocks,
 			}
 			if strings.HasSuffix(name, "_test.go") {

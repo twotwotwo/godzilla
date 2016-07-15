@@ -7,15 +7,10 @@ import (
 )
 
 // Mutator is an operation that can be applied to go source to mutate it.
-type Mutator func(TypesInfo, ast.Node, func())
-
-// TypesInfo is a struct that holds all the type information.
-type TypesInfo struct {
-	*types.Info
-}
+type Mutator func(*types.Info, ast.Node, func())
 
 // VoidCallRemoverMutator removes calls to void function/methods
-func VoidCallRemoverMutator(v TypesInfo, node ast.Node, testMutant func()) {
+func VoidCallRemoverMutator(v *types.Info, node ast.Node, testMutant func()) {
 	if block, ok := node.(*ast.BlockStmt); ok {
 		for i, stmt := range block.List {
 			if expr, ok := stmt.(*ast.ExprStmt); ok {
@@ -37,7 +32,7 @@ func VoidCallRemoverMutator(v TypesInfo, node ast.Node, testMutant func()) {
 
 // SwapIfElse swaps an ast node if body with the following else statement, if it
 // exists, it will not swap the else if body of an if/else if node.
-func SwapIfElse(v TypesInfo, node ast.Node, testMutant func()) {
+func SwapIfElse(_ *types.Info, node ast.Node, testMutant func()) {
 	// if its an if statement node
 	if ifstmt, ok := node.(*ast.IfStmt); ok {
 		// if theres an else
@@ -69,7 +64,7 @@ var conditionalsBoundaryMutatorTable = map[token.Token]token.Token{
 //	<= to <
 //	>  to >=
 //	>= to >
-func ConditionalsBoundaryMutator(v TypesInfo, node ast.Node, testMutant func()) {
+func ConditionalsBoundaryMutator(_ *types.Info, node ast.Node, testMutant func()) {
 	if expr, ok := node.(*ast.BinaryExpr); ok {
 		old := expr.Op
 		op, ok := conditionalsBoundaryMutatorTable[expr.Op]
@@ -111,7 +106,7 @@ var mathMutatorTable = map[token.Token]token.Token{
 //	^   to &
 //	<<  to >>
 //	>>  to <<
-func MathMutator(v TypesInfo, node ast.Node, testMutant func()) {
+func MathMutator(_ *types.Info, node ast.Node, testMutant func()) {
 	if expr, ok := node.(*ast.BinaryExpr); ok {
 		old := expr.Op
 		op, ok := mathMutatorTable[expr.Op]
@@ -132,7 +127,7 @@ var booleanMutatorTable = map[token.Token]token.Token{
 // BooleanOperatorsMutator swaps various mathematical operators.
 //	&&	to	||
 //	||	to	&&
-func BooleanOperatorsMutator(v TypesInfo, node ast.Node, testMutant func()) {
+func BooleanOperatorsMutator(_ *types.Info, node ast.Node, testMutant func()) {
 	if expr, ok := node.(*ast.BinaryExpr); ok {
 		old := expr.Op
 		op, ok := booleanMutatorTable[expr.Op]
@@ -164,7 +159,7 @@ var mathAssignementMutatorTable = map[token.Token]token.Token{
 }
 
 // MathAssignMutator acts like MathMutator but on assignements.
-func MathAssignMutator(v TypesInfo, node ast.Node, testMutant func()) {
+func MathAssignMutator(_ *types.Info, node ast.Node, testMutant func()) {
 	if assign, ok := node.(*ast.AssignStmt); ok {
 		old := assign.Tok
 		op, ok := mathAssignementMutatorTable[assign.Tok]
@@ -189,7 +184,7 @@ var negateConditionalsMutatorTable = map[token.Token]token.Token{
 }
 
 // NegateConditionalsMutator negates some boolean checks
-func NegateConditionalsMutator(v TypesInfo, node ast.Node, testMutant func()) {
+func NegateConditionalsMutator(_ *types.Info, node ast.Node, testMutant func()) {
 	if expr, ok := node.(*ast.BinaryExpr); ok {
 		old := expr.Op
 		op, ok := negateConditionalsMutatorTable[expr.Op]
