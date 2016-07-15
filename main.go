@@ -54,6 +54,10 @@ func getRunConfig() config {
 			fmt.Fprint(os.Stderr, err)
 			os.Exit(1)
 		}
+		if !strings.HasPrefix(wd, gopath) {
+			fmt.Println("no package given and not in gopath")
+			os.Exit(1)
+		}
 		// no need to use os.PathSeparator here because len(`/`) == len(`\`)
 		pkg = wd[len(gopath)+len(`/src/`):]
 	}
@@ -125,6 +129,16 @@ func generateCoverprofile(pkg string) []*cover.Profile {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
+	}
+
+	// remove all the Blocks that aren't covered
+	for _, profile := range profiles {
+		for i := 0; i < len(profile.Blocks); i++ {
+			if profile.Blocks[i].Count == 0 {
+				profile.Blocks = profile.Blocks[:i+copy(profile.Blocks[i:], profile.Blocks[i+1:])]
+				i--
+			}
+		}
 	}
 
 	return profiles
@@ -246,6 +260,8 @@ type Visitor struct {
 	coverprofiles []*cover.Profile
 
 	info *types.Info
+
+	blocks []cover.ProfileBlock
 }
 
 // Mutate starts mutating the source, it gets the mutators from the given
@@ -312,27 +328,37 @@ func (w worker) Mutate(c chan Mutator, wg *sync.WaitGroup) {
 	}*/
 
 	for m := range c {
-		v := &Visitor{
-			mutantDir:     w.mutantDir,
-			originalDir:   w.execDir,
-			fset:          fset,
-			pkgs:          spkgs,
-			mutator:       m,
-			coverprofiles: w.coverprofiles,
-			info:          info,
-		}
 
 		for name, file := range pkg.Files {
+			var blocks []cover.ProfileBlock
+			for _, p := range w.coverprofiles {
+				if !strings.HasSuffix(name, p.FileName) {
+					continue
+				}
+				blocks = p.Blocks
+				break
+			}
+
+			v := &Visitor{
+				mutantDir:     w.mutantDir,
+				originalDir:   w.execDir,
+				fset:          fset,
+				pkgs:          spkgs,
+				mutator:       m,
+				coverprofiles: w.coverprofiles,
+				info:          info,
+				blocks:        blocks,
+			}
 			if strings.HasSuffix(name, "_test.go") {
 				continue
 			}
 			ast.Walk(v, file)
+			w.results <- Result{
+				alive: v.mutantAlive,
+				total: v.mutantCount,
+			}
 		}
 
-		w.results <- Result{
-			alive: v.mutantAlive,
-			total: v.mutantCount,
-		}
 	}
 }
 
@@ -356,6 +382,7 @@ func (v *Visitor) TestMutant() {
 			fileName = filepath.Join(v.mutantDir, fileName)
 			cmd := exec.Command("gofmt", "-w", fileName)
 			if err := cmd.Run(); err != nil {
+				// not expected to appear
 				fmt.Println("did not gofmted", fileName, err)
 				return
 			}
@@ -366,6 +393,7 @@ func (v *Visitor) TestMutant() {
 	cmd := exec.Command("go", "build")
 	cmd.Dir = v.mutantDir
 	if err := cmd.Run(); err != nil {
+		// not expected to appear
 		fmt.Println("invalid build")
 		return
 	}
@@ -424,12 +452,10 @@ func (v *Visitor) Visit(node ast.Node) ast.Visitor {
 	// the modification because code coverage shows you already what isn't
 	// covered in your code.
 	pos := v.fset.Position(node.Pos())
-	for _, profile := range v.coverprofiles {
-		for _, block := range profile.Blocks {
-			if (block.StartLine < pos.Line || (block.StartLine == pos.Line && pos.Column >= block.StartCol)) &&
-				(block.EndLine > pos.Line || (block.EndLine == pos.Line && pos.Column <= block.EndCol)) {
-				v.mutator(v, node, v.TestMutant)
-			}
+	for _, block := range v.blocks {
+		if (block.StartLine < pos.Line || (block.StartLine == pos.Line && pos.Column >= block.StartCol)) &&
+			(block.EndLine > pos.Line || (block.EndLine == pos.Line && pos.Column <= block.EndCol)) {
+			v.mutator(v, node, v.TestMutant)
 		}
 	}
 	return v
@@ -438,7 +464,21 @@ func (v *Visitor) Visit(node ast.Node) ast.Visitor {
 // VoidCallRemoverMutator removes calls to void function/methods
 func VoidCallRemoverMutator(v *Visitor, node ast.Node, testMutant func()) {
 	if block, ok := node.(*ast.BlockStmt); ok {
-		_ = block
+		for i, stmt := range block.List {
+			if expr, ok := stmt.(*ast.ExprStmt); ok {
+				if v, ok := v.info.Types[expr.X]; ok {
+					if v.IsVoid() {
+						mutation := make([]ast.Stmt, len(block.List))
+						copy(mutation, block.List)
+						mutation = mutation[:i+copy(mutation[i:], mutation[i+1:])]
+						old := block.List
+						block.List = mutation
+						testMutant()
+						block.List = old
+					}
+				}
+			}
+		}
 	}
 	/*
 		Types:      make(map[ast.Expr]types.TypeAndValue),
