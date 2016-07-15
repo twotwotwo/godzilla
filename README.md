@@ -52,8 +52,6 @@ The math mutator swaps mathematical operators.
 | <<	| >> |
 | >>	| << |
 
-(markdown confuses `|` operator with table delimiters)
-
 ### Math Assign
 The math assign mutator is similar to the Math mutator but for assignements.
 
@@ -69,8 +67,6 @@ The math assign mutator is similar to the Math mutator but for assignements.
 | ^= | &= |
 | <<= | >>= |
 | >>= | <<= |
-
-(markdown confuses `|=` operator with table delimiters)
 
 ### Negate Conditionals
 The negate conditionals mutator converts boolean checks to their inverse.
