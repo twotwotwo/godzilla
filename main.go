@@ -187,6 +187,7 @@ func main() {
 		MathMutator,
 		MathAssignMutator,
 		VoidCallRemoverMutator,
+		BooleanOperatorsMutator,
 	}
 	c := make(chan Mutator, len(mutators))
 	for _, mutator := range mutators {
@@ -570,6 +571,27 @@ func MathMutator(v *Visitor, node ast.Node, testMutant func()) {
 	if expr, ok := node.(*ast.BinaryExpr); ok {
 		old := expr.Op
 		op, ok := mathMutatorTable[expr.Op]
+		if !ok {
+			return
+		}
+		expr.Op = op
+		testMutant()
+		expr.Op = old
+	}
+}
+
+var booleanMutatorTable = map[token.Token]token.Token{
+	token.LAND: token.LOR,
+	token.LOR:  token.LAND,
+}
+
+// BooleanOperatorsMutator swaps various mathematical operators.
+//	&&	to	||
+//	||	to	&&
+func BooleanOperatorsMutator(v *Visitor, node ast.Node, testMutant func()) {
+	if expr, ok := node.(*ast.BinaryExpr); ok {
+		old := expr.Op
+		op, ok := booleanMutatorTable[expr.Op]
 		if !ok {
 			return
 		}

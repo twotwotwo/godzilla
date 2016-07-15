@@ -18,6 +18,14 @@ The Swap If Else mutator swaps the body of an if/else statement
 ### Void Call Remover
 The void call remover removes all the void function and method call.
 
+### Boolean Operators
+The boolean operators mutator swaps boolean operators.
+
+| Original | New |
+|----------|-----|
+| && | &#124;&#124; |
+| &#124;&#124; | && |
+
 ### Conditionals Boundary
 The conditionals boundary mutator swaps comparison operators to their counterpart that contains, or not, an equality sign.
 
@@ -38,8 +46,8 @@ The math mutator swaps mathematical operators.
 | *	| / |
 | /	| * |
 | %	| * |
-| &	| OR |
-| OR | & |
+| &	| &#124; |
+| &#124; | & |
 | ^	| & |
 | <<	| >> |
 | >>	| << |
@@ -56,8 +64,8 @@ The math assign mutator is similar to the Math mutator but for assignements.
 | *= | /= |
 | /= | *= |
 | %= | *= |
-| &= | OR= |
-| OR= | &= |
+| &= | &#124;= |
+| &#124;= | &= |
 | ^= | &= |
 | <<= | >>= |
 | >>= | <<= |
