@@ -566,7 +566,6 @@ var mathMutatorTable = map[token.Token]token.Token{
 //	^   to &
 //	<<  to >>
 //	>>  to <<
-//	>>> to <<
 func MathMutator(v *Visitor, node ast.Node, testMutant func()) {
 	if expr, ok := node.(*ast.BinaryExpr); ok {
 		old := expr.Op
