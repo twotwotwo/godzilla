@@ -43,6 +43,7 @@ The math mutator swaps mathematical operators.
 | ^	| & |
 | <<	| >> |
 | >>	| << |
+
 (markdown confuses `|` operator with table delimiters)
 
 ### Math Assign
