@@ -682,11 +682,6 @@ float double    replace the unmutated return value x with the result of -(x+1.0)
 Object          replace non-null return values with null and throw a java.lang.RuntimeException if the unmutated method would return null
 */
 
-// Void Method Calls Mutator
-/*
-The void method call mutator removes method calls to void methods.
-*/
-
 // Inline constant mutator
 /*
 boolean             replace the unmutated value true with false and replace the unmutated value false with true
