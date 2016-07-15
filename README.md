@@ -4,7 +4,7 @@ godzilla is a mutation testing tool for Go package.
 
 It is stil very much WIP but if you'd like to try it
 
-    $ go get -u github.com/hydroflame/godzilla
+    $ go get -u github.com/hydroflame/godzilla && go install gihub.com/hydrflame/godzilla/cmd/godzilla
     
 then to run it:
 
