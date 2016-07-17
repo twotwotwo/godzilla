@@ -8,14 +8,49 @@ import (
 )
 
 // Mutators maps command line names to their mutators.
-var Mutators = map[string]Mutator{
-	"voidrm":     VoidCallRemoverMutator,
-	"swapifelse": SwapIfElse,
-	"condbound":  ConditionalsBoundaryMutator,
-	"math":       MathMutator,
-	"boolop":     BooleanOperatorsMutator,
-	"mathassign": MathAssignMutator,
-	"negcond":    NegateConditionalsMutator,
+var Mutators = map[string]Desc{
+	"voidrm": Desc{
+		M:           VoidCallRemoverMutator,
+		Name:        "voidrm",
+		Description: "Removes void function call.",
+	},
+	"swapifelse": Desc{
+		M:           SwapIfElse,
+		Name:        "swapifelse",
+		Description: "Swaps content of if/else statements.",
+	},
+	"condbound": Desc{
+		M:           ConditionalsBoundaryMutator,
+		Name:        "condbound",
+		Description: "Adds or remove an equal sign in comparison operators.",
+	},
+	"math": Desc{
+		M:           MathMutator,
+		Name:        "math",
+		Description: "Swaps various mathematical operators. (eg. + to -)",
+	},
+	"boolop": Desc{
+		M:           BooleanOperatorsMutator,
+		Name:        "boolop",
+		Description: "Changes && to || and vice versa.",
+	},
+	"mathassign": Desc{
+		M:           MathAssignMutator,
+		Name:        "mathassign",
+		Description: "Same as the math mutator but for assignements.",
+	},
+	"negcond": Desc{
+		M:           NegateConditionalsMutator,
+		Name:        "negcond",
+		Description: "Swaps comparison operators to their inverse (eg. == to !=)",
+	},
+}
+
+// Desc represents a specific description of a mutator.
+type Desc struct {
+	M           Mutator
+	Name        string
+	Description string
 }
 
 // Tester represents an interface that allows mutators to test their mutation.

@@ -24,10 +24,6 @@ import (
 	"golang.org/x/tools/cover"
 )
 
-const (
-	workdirPrefix = "gopath"
-)
-
 type config struct {
 	// The importable name of the package to irradiate.
 	pkg string
@@ -105,7 +101,7 @@ func sanityCheck(cfg config) {
 			if !strings.HasSuffix(finfo.Name(), ".go") {
 				continue
 			}
-			cmd := exec.Command("gofmt", "-d", filepath.Join(cfg.pkgFull, finfo.Name()))
+			cmd := exec.Command("gofmt", "-s", "-d", filepath.Join(cfg.pkgFull, finfo.Name()))
 			var b bytes.Buffer
 			cmd.Stdout = &b
 			if err := cmd.Run(); err != nil || b.Len() > 0 {
@@ -175,7 +171,7 @@ func main() {
 	pkgPath := filepath.Join(cfg.gopath, "src", cfg.pkg)
 	// generate the mutation worker.
 	for n := 0; n < runtime.NumCPU(); n++ {
-		workdir := filepath.Join(tmpDir, workdirPrefix+strconv.Itoa(n))
+		workdir := filepath.Join(tmpDir, "gopath"+strconv.Itoa(n))
 		err := os.Mkdir(workdir, 0755)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, err.Error())
@@ -245,12 +241,8 @@ type worker struct {
 // Visitor is a struct that runs a particular mutation case on the ast.Package.
 type Visitor struct {
 	parseInfo mutators.ParseInfo
-
-	// this function should make a change to the ast.Node, call the 2nd argument
-	// function and change it back into the original ast.Node.
-	mutator mutators.Mutator
-
-	tester mutators.Tester
+	mutator   mutators.Mutator
+	tester    mutators.Tester
 }
 
 // Mutate starts mutating the source, it gets the mutators from the given
@@ -422,7 +414,9 @@ func (t *tester) Test() {
 		if strings.HasSuffix(finfo.Name(), "_test.go") {
 			continue
 		}
-		cmd := exec.Command("diff", "-u", filepath.Join(t.originalDir, finfo.Name()), filepath.Join(t.mutantDir, finfo.Name()))
+		cmd := exec.Command("diff", "-u",
+			filepath.Join(t.originalDir, finfo.Name()),
+			filepath.Join(t.mutantDir, finfo.Name()))
 		cmd.Stdout = os.Stdout
 		if err := cmd.Run(); err != nil {
 			fmt.Println(err)
