@@ -174,9 +174,7 @@ func main() {
 	results := make(chan Result)
 	pkgPath := filepath.Join(cfg.gopath, "src", cfg.pkg)
 	// generate the mutation worker.
-	//for n := 0; n < runtime.NumCPU(); n++ {
-	_ = runtime.Compiler
-	for n := 0; n < 1; n++ {
+	for n := 0; n < runtime.NumCPU(); n++ {
 		workdir := filepath.Join(tmpDir, workdirPrefix+strconv.Itoa(n))
 		err := os.Mkdir(workdir, 0755)
 		if err != nil {
@@ -222,7 +220,9 @@ func main() {
 		res.alive += r.alive
 		res.total += r.total
 	}
-	fmt.Printf("score: %d/%d = %.2f\n", res.total-res.alive, res.total, float64(res.total-res.alive)/float64(res.total))
+	if _, ok := <-quit; ok {
+		fmt.Printf("score: %d/%d = %.2f\n", res.total-res.alive, res.total, float64(res.total-res.alive)/float64(res.total))
+	}
 }
 
 // Result is the data passed to the aggregator to sum the total number of mutant
@@ -338,7 +338,12 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan st
 
 	for {
 		select {
-		case m := <-c:
+		case <-quit:
+			return
+		case m, ok := <-c:
+			if !ok {
+				return
+			}
 			for name, file := range pkg.Files {
 				var blocks []cover.ProfileBlock
 				for _, p := range w.coverprofiles {
