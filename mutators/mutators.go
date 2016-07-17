@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"golang.org/x/tools/cover"
 )
 
 // Mutators maps command line names to their mutators.
@@ -17,11 +18,54 @@ var Mutators = map[string]Mutator{
 	"negcond":    NegateConditionalsMutator,
 }
 
+// Tester represents an interface that allows mutators to test their mutation.
+// The passed Tester needs to keep track of wether the mutant passed the tests
+// or not
+type Tester interface {
+	Test()
+}
+
+// FuncTester implements Tester, just a shortcut for functions that don't need a
+// receiver.
+type FuncTester func()
+
+// Test tests the mutant.
+func (f FuncTester) Test() {
+	f()
+}
+
 // Mutator is an operation that can be applied to go source to mutate it.
-type Mutator func(*types.Info, ast.Node, func())
+type Mutator func(ParseInfo, ast.Node, Tester)
+
+// ParseInfo is the information about the parsed package we are trying to
+// mutate.
+type ParseInfo struct {
+	FileSet       *token.FileSet
+	CoveredBlocks []cover.ProfileBlock
+	TypesInfo     *types.Info
+}
+
+func coverageFilter(parseInfo ParseInfo, node ast.Node, tester Tester, mutator Mutator) {
+	// only call the mutator if the code will ever be executed. Non-executed
+	// code is considered alive mutants, but don't bother checking or displaying
+	// the modification because code coverage shows you already what isn't
+	// covered in your code.
+	pos := parseInfo.FileSet.Position(node.Pos())
+	for _, block := range parseInfo.CoveredBlocks {
+		if block.Count > 0 &&
+			(block.StartLine < pos.Line || (block.StartLine == pos.Line && pos.Column >= block.StartCol)) &&
+			(block.EndLine > pos.Line || (block.EndLine == pos.Line && pos.Column <= block.EndCol)) {
+			mutator(parseInfo, node, tester)
+		}
+	}
+}
 
 // VoidCallRemoverMutator removes calls to void function/methods.
-func VoidCallRemoverMutator(v *types.Info, node ast.Node, testMutant func()) {
+func VoidCallRemoverMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	coverageFilter(parseInfo, node, tester, voidCallRemoverMutator)
+}
+
+func voidCallRemoverMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
 	block, ok := node.(*ast.BlockStmt)
 	if !ok {
 		return
@@ -32,7 +76,7 @@ func VoidCallRemoverMutator(v *types.Info, node ast.Node, testMutant func()) {
 			continue
 		}
 
-		v, ok := v.Types[expr.X]
+		v, ok := parseInfo.TypesInfo.Types[expr.X]
 		if !ok {
 
 		}
@@ -47,7 +91,7 @@ func VoidCallRemoverMutator(v *types.Info, node ast.Node, testMutant func()) {
 		old := block.List
 		block.List = mutation
 
-		testMutant()
+		tester.Test()
 
 		block.List = old
 	}
@@ -55,7 +99,13 @@ func VoidCallRemoverMutator(v *types.Info, node ast.Node, testMutant func()) {
 
 // SwapIfElse swaps an ast node if body with the following else statement, if it
 // exists, it will not swap the else if body of an if/else if node.
-func SwapIfElse(_ *types.Info, node ast.Node, testMutant func()) {
+func SwapIfElse(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	coverageFilter(parseInfo, node, tester, swapIfElse)
+}
+
+// swapIfElse swaps an ast node if body with the following else statement, if it
+// exists, it will not swap the else if body of an if/else if node.
+func swapIfElse(_ ParseInfo, node ast.Node, tester Tester) {
 	// if its an if statement node
 	ifstmt, ok := node.(*ast.IfStmt)
 	if !ok {
@@ -74,10 +124,19 @@ func SwapIfElse(_ *types.Info, node ast.Node, testMutant func()) {
 	ifstmt.Else = ifstmt.Body
 	ifstmt.Body = el
 	// test that mutant
-	testMutant()
+	tester.Test()
 	// swap back
 	ifstmt.Body = ifstmt.Else.(*ast.BlockStmt)
 	ifstmt.Else = el
+}
+
+// ConditionalsBoundaryMutator performs
+//	<  to <=
+//	<= to <
+//	>  to >=
+//	>= to >
+func ConditionalsBoundaryMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	coverageFilter(parseInfo, node, tester, conditionalsBoundaryMutator)
 }
 
 var conditionalsBoundaryMutatorTable = map[token.Token]token.Token{
@@ -87,12 +146,7 @@ var conditionalsBoundaryMutatorTable = map[token.Token]token.Token{
 	token.GEQ: token.GTR,
 }
 
-// ConditionalsBoundaryMutator performs
-//	<  to <=
-//	<= to <
-//	>  to >=
-//	>= to >
-func ConditionalsBoundaryMutator(_ *types.Info, node ast.Node, testMutant func()) {
+func conditionalsBoundaryMutator(_ ParseInfo, node ast.Node, tester Tester) {
 	expr, ok := node.(*ast.BinaryExpr)
 	if !ok {
 		return
@@ -105,9 +159,24 @@ func ConditionalsBoundaryMutator(_ *types.Info, node ast.Node, testMutant func()
 	}
 	expr.Op = op
 
-	testMutant()
+	tester.Test()
 
 	expr.Op = old
+}
+
+// MathMutator swaps various mathematical operators
+//	+   to -
+//	-   to +
+//	*   to /
+//	/   to *
+//	%   to *
+//	&   to |
+//	|   to &
+//	^   to &
+//	<<  to >>
+//	>>  to <<
+func MathMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	coverageFilter(parseInfo, node, tester, mathMutator)
 }
 
 var mathMutatorTable = map[token.Token]token.Token{
@@ -128,18 +197,7 @@ var mathMutatorTable = map[token.Token]token.Token{
 	token.SHR: token.SHL,
 }
 
-// MathMutator swaps various mathematical operators
-//	+   to -
-//	-   to +
-//	*   to /
-//	/   to *
-//	%   to *
-//	&   to |
-//	|   to &
-//	^   to &
-//	<<  to >>
-//	>>  to <<
-func MathMutator(_ *types.Info, node ast.Node, testMutant func()) {
+func mathMutator(_ ParseInfo, node ast.Node, tester Tester) {
 	expr, ok := node.(*ast.BinaryExpr)
 	if !ok {
 		return
@@ -152,9 +210,16 @@ func MathMutator(_ *types.Info, node ast.Node, testMutant func()) {
 	}
 	expr.Op = op
 
-	testMutant()
+	tester.Test()
 
 	expr.Op = old
+}
+
+// BooleanOperatorsMutator swaps various mathematical operators.
+//	&&	to	||
+//	||	to	&&
+func BooleanOperatorsMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	coverageFilter(parseInfo, node, tester, booleanOperatorsMutator)
 }
 
 var booleanMutatorTable = map[token.Token]token.Token{
@@ -162,10 +227,7 @@ var booleanMutatorTable = map[token.Token]token.Token{
 	token.LOR:  token.LAND,
 }
 
-// BooleanOperatorsMutator swaps various mathematical operators.
-//	&&	to	||
-//	||	to	&&
-func BooleanOperatorsMutator(_ *types.Info, node ast.Node, testMutant func()) {
+func booleanOperatorsMutator(_ ParseInfo, node ast.Node, tester Tester) {
 	expr, ok := node.(*ast.BinaryExpr)
 	if !ok {
 		return
@@ -178,9 +240,14 @@ func BooleanOperatorsMutator(_ *types.Info, node ast.Node, testMutant func()) {
 	}
 	expr.Op = op
 
-	testMutant()
+	tester.Test()
 
 	expr.Op = old
+}
+
+// MathAssignMutator acts like MathMutator but on assignements.
+func MathAssignMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	coverageFilter(parseInfo, node, tester, mathAssignMutator)
 }
 
 var mathAssignementMutatorTable = map[token.Token]token.Token{
@@ -201,8 +268,7 @@ var mathAssignementMutatorTable = map[token.Token]token.Token{
 	token.SHR_ASSIGN: token.SHL_ASSIGN,
 }
 
-// MathAssignMutator acts like MathMutator but on assignements.
-func MathAssignMutator(_ *types.Info, node ast.Node, testMutant func()) {
+func mathAssignMutator(_ ParseInfo, node ast.Node, tester Tester) {
 	assign, ok := node.(*ast.AssignStmt)
 	if !ok {
 		return
@@ -215,9 +281,14 @@ func MathAssignMutator(_ *types.Info, node ast.Node, testMutant func()) {
 	}
 	assign.Tok = op
 
-	testMutant()
+	tester.Test()
 
 	assign.Tok = old
+}
+
+// NegateConditionalsMutator negates some boolean checks
+func NegateConditionalsMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	coverageFilter(parseInfo, node, tester, negateConditionalsMutator)
 }
 
 var negateConditionalsMutatorTable = map[token.Token]token.Token{
@@ -231,8 +302,7 @@ var negateConditionalsMutatorTable = map[token.Token]token.Token{
 	token.LEQ: token.GTR,
 }
 
-// NegateConditionalsMutator negates some boolean checks
-func NegateConditionalsMutator(_ *types.Info, node ast.Node, testMutant func()) {
+func negateConditionalsMutator(_ ParseInfo, node ast.Node, tester Tester) {
 	expr, ok := node.(*ast.BinaryExpr)
 	if !ok {
 		return
@@ -245,7 +315,7 @@ func NegateConditionalsMutator(_ *types.Info, node ast.Node, testMutant func()) 
 	}
 	expr.Op = op
 
-	testMutant()
+	tester.Test()
 
 	expr.Op = old
 }

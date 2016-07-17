@@ -321,20 +321,6 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan st
 		return
 	}
 
-	/*for k, def := range info.Defs {
-		fmt.Printf("%q %q\n", func() string {
-			if k != nil {
-				return k.String()
-			}
-			return ""
-		}(), func() string {
-			if def != nil {
-				return def.String()
-			}
-			return ""
-		}())
-	}*/
-
 	for {
 		select {
 		case <-quit:
@@ -396,8 +382,8 @@ func (v *Visitor) TestMutant() {
 			fileName = filepath.Join(v.mutantDir, fileName)
 			cmd := exec.Command("gofmt", "-w", fileName)
 			if err := cmd.Run(); err != nil {
-				// not expected to appear
-				fmt.Println("did not gofmted", fileName, err)
+				// that message is not expected to appear.
+				fmt.Println("gofmt error: ", fileName, err)
 				return
 			}
 		}
@@ -407,7 +393,8 @@ func (v *Visitor) TestMutant() {
 	cmd := exec.Command("go", "build")
 	cmd.Dir = v.mutantDir
 	if err := cmd.Run(); err != nil {
-		// not expected to appear
+		// that message is not expected to appear. That implies one of the
+		// mutator build a code tree that doesn't compile.
 		fmt.Println("invalid build")
 		return
 	}
@@ -421,6 +408,7 @@ func (v *Visitor) TestMutant() {
 	cmd.Dir = v.mutantDir
 	v.mutantCount++
 	if getExitCode(cmd.Run()) != 0 {
+		// the tests failed, we're done
 		return
 	}
 	v.mutantAlive++
@@ -461,16 +449,11 @@ func (v *Visitor) Visit(node ast.Node) ast.Visitor {
 	if node == nil { // sometimes called with nil for some reason.
 		return v
 	}
-	// only call the mutator if the code will ever be executed. Non-executed
-	// code is considered alive mutants, but don't bother checking or displaying
-	// the modification because code coverage shows you already what isn't
-	// covered in your code.
-	pos := v.fset.Position(node.Pos())
-	for _, block := range v.blocks {
-		if (block.StartLine < pos.Line || (block.StartLine == pos.Line && pos.Column >= block.StartCol)) &&
-			(block.EndLine > pos.Line || (block.EndLine == pos.Line && pos.Column <= block.EndCol)) {
-			v.mutator(v.info, node, v.TestMutant)
-		}
-	}
+
+	v.mutator(mutators.ParseInfo{
+		FileSet:       v.fset,
+		CoveredBlocks: v.blocks,
+		TypesInfo:     v.info,
+	}, node, mutators.FuncTester(v.TestMutant))
 	return v
 }
