@@ -251,17 +251,6 @@ type Visitor struct {
 	mutator mutators.Mutator
 
 	tester mutators.Tester
-
-	// the directory that this mutant should test into.
-	mutantDir string
-
-	originalDir string
-
-	// the packages, either len is 1 or 2, if it's 2 its because we have {{.}}
-	// and {{.}}_test
-	pkgs []*ast.Package
-
-	result Result
 }
 
 // Mutate starts mutating the source, it gets the mutators from the given
@@ -337,10 +326,7 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan st
 				}
 
 				v := &Visitor{
-					mutantDir:   w.mutantDir,
-					originalDir: w.originalDir,
-					pkgs:        spkgs,
-					mutator:     m,
+					mutator: m,
 					parseInfo: mutators.ParseInfo{
 						FileSet:       fset,
 						CoveredBlocks: blocks,
@@ -376,24 +362,23 @@ type tester struct {
 	result Result
 }
 
-// TestMutant take the current ast.Package, writes it to a new mutant package
-// and test it.
-func (v *tester) Test() {
+// Test take the current ast.Package, rewrites the source and test it.
+func (t *tester) Test() {
 	// write all ast file to their equivalent in the mutant dir
-	for _, pkg := range v.pkgs {
+	for _, pkg := range t.pkgs {
 		for fullFileName, astFile := range pkg.Files {
 			fileName := filepath.Base(fullFileName)
-			file, err := os.OpenFile(filepath.Join(v.mutantDir, fileName), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0700)
+			file, err := os.OpenFile(filepath.Join(t.mutantDir, fileName), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0700)
 			if err != nil {
 				panic(err)
 			}
-			err = printer.Fprint(file, v.fset, astFile)
+			err = printer.Fprint(file, t.fset, astFile)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err.Error())
 			}
 			// the output from ast doesn't always conform to gofmt ... so try to
 			// minimize the diff a maximum by gofmting the files.
-			fileName = filepath.Join(v.mutantDir, fileName)
+			fileName = filepath.Join(t.mutantDir, fileName)
 			cmd := exec.Command("gofmt", "-w", fileName)
 			if err := cmd.Run(); err != nil {
 				// that message is not expected to appear.
@@ -405,7 +390,7 @@ func (v *tester) Test() {
 
 	// Verify that the mutant we generated actually compiles
 	cmd := exec.Command("go", "build")
-	cmd.Dir = v.mutantDir
+	cmd.Dir = t.mutantDir
 	if err := cmd.Run(); err != nil {
 		// that message is not expected to appear. That implies one of the
 		// mutator build a code tree that doesn't compile.
@@ -419,16 +404,16 @@ func (v *tester) Test() {
 	// import the actual mutant, make the GOPATH var of the cmd be
 	// `GOPATH=.../mutantDir:ActualGOPATH`
 	cmd = exec.Command("go", "test", "-short")
-	cmd.Dir = v.mutantDir
-	v.result.total++
+	cmd.Dir = t.mutantDir
+	t.result.total++
 	if getExitCode(cmd.Run()) != 0 {
 		// the tests failed, we're done
 		return
 	}
-	v.result.alive++
+	t.result.alive++
 
 	// make the diff
-	finfos, err := ioutil.ReadDir(v.mutantDir)
+	finfos, err := ioutil.ReadDir(t.mutantDir)
 	if err != nil {
 		return
 	}
@@ -437,7 +422,7 @@ func (v *tester) Test() {
 		if strings.HasSuffix(finfo.Name(), "_test.go") {
 			continue
 		}
-		cmd := exec.Command("diff", "-u", filepath.Join(v.originalDir, finfo.Name()), filepath.Join(v.mutantDir, finfo.Name()))
+		cmd := exec.Command("diff", "-u", filepath.Join(t.originalDir, finfo.Name()), filepath.Join(t.mutantDir, finfo.Name()))
 		cmd.Stdout = os.Stdout
 		if err := cmd.Run(); err != nil {
 			fmt.Println(err)
