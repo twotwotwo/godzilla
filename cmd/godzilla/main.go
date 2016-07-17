@@ -346,19 +346,39 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan st
 						CoveredBlocks: blocks,
 						TypesInfo:     info,
 					},
+					tester: &tester{
+						mutantDir:   w.mutantDir,
+						originalDir: w.originalDir,
+						pkgs:        spkgs,
+						fset:        fset,
+					},
 				}
-				v.tester = mutators.FuncTester(v.TestMutant)
 
 				ast.Walk(v, file)
-				w.results <- v.result
+				w.results <- v.tester.(*tester).result
 			}
 		}
 	}
 }
 
+type tester struct {
+	// the directory that this mutant should test into.
+	mutantDir string
+
+	originalDir string
+
+	// the packages, either len is 1 or 2, if it's 2 its because we have {{.}}
+	// and {{.}}_test
+	pkgs []*ast.Package
+
+	fset *token.FileSet
+
+	result Result
+}
+
 // TestMutant take the current ast.Package, writes it to a new mutant package
 // and test it.
-func (v *Visitor) TestMutant() {
+func (v *tester) Test() {
 	// write all ast file to their equivalent in the mutant dir
 	for _, pkg := range v.pkgs {
 		for fullFileName, astFile := range pkg.Files {
@@ -367,7 +387,7 @@ func (v *Visitor) TestMutant() {
 			if err != nil {
 				panic(err)
 			}
-			err = printer.Fprint(file, v.parseInfo.FileSet, astFile)
+			err = printer.Fprint(file, v.fset, astFile)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err.Error())
 			}
