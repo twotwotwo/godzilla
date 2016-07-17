@@ -346,10 +346,7 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan st
 					},
 				}
 				ast.Walk(v, file)
-				w.results <- Result{
-					alive: v.mutantAlive,
-					total: v.mutantCount,
-				}
+				w.results <- v.result
 			}
 		}
 	}
@@ -399,12 +396,12 @@ func (v *Visitor) TestMutant() {
 	// `GOPATH=.../mutantDir:ActualGOPATH`
 	cmd = exec.Command("go", "test", "-short")
 	cmd.Dir = v.mutantDir
-	v.mutantCount++
+	v.result.total++
 	if getExitCode(cmd.Run()) != 0 {
 		// the tests failed, we're done
 		return
 	}
-	v.mutantAlive++
+	v.result.alive++
 
 	// make the diff
 	finfos, err := ioutil.ReadDir(v.mutantDir)
