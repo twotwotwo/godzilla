@@ -249,7 +249,7 @@ type Visitor struct {
 
 	originalDir string
 
-	fset *token.FileSet
+	parseInfo mutators.ParseInfo
 
 	// the packages, either len is 1 or 2, if it's 2 its because we have {{.}}
 	// and {{.}}_test
@@ -264,12 +264,6 @@ type Visitor struct {
 	// this function should make a change to the ast.Node, call the 2nd argument
 	// function and change it back into the original ast.Node.
 	mutator mutators.Mutator
-
-	coverprofiles []*cover.Profile
-
-	info *types.Info
-
-	blocks []cover.ProfileBlock
 }
 
 // Mutate starts mutating the source, it gets the mutators from the given
@@ -330,6 +324,11 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan st
 				return
 			}
 			for name, file := range pkg.Files {
+				if strings.HasSuffix(name, "_test.go") {
+					continue
+				}
+
+				// find the block we actually care about.
 				var blocks []cover.ProfileBlock
 				for _, p := range w.coverprofiles {
 					if !strings.HasSuffix(name, p.FileName) {
@@ -340,17 +339,15 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan st
 				}
 
 				v := &Visitor{
-					mutantDir:     w.mutantDir,
-					originalDir:   w.execDir,
-					fset:          fset,
-					pkgs:          spkgs,
-					mutator:       m,
-					coverprofiles: w.coverprofiles,
-					info:          info,
-					blocks:        blocks,
-				}
-				if strings.HasSuffix(name, "_test.go") {
-					continue
+					mutantDir:   w.mutantDir,
+					originalDir: w.execDir,
+					pkgs:        spkgs,
+					mutator:     m,
+					parseInfo: mutators.ParseInfo{
+						FileSet:       fset,
+						CoveredBlocks: blocks,
+						TypesInfo:     info,
+					},
 				}
 				ast.Walk(v, file)
 				w.results <- Result{
@@ -373,7 +370,7 @@ func (v *Visitor) TestMutant() {
 			if err != nil {
 				panic(err)
 			}
-			err = printer.Fprint(file, v.fset, astFile)
+			err = printer.Fprint(file, v.parseInfo.FileSet, astFile)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err.Error())
 			}
@@ -450,10 +447,6 @@ func (v *Visitor) Visit(node ast.Node) ast.Visitor {
 		return v
 	}
 
-	v.mutator(mutators.ParseInfo{
-		FileSet:       v.fset,
-		CoveredBlocks: v.blocks,
-		TypesInfo:     v.info,
-	}, node, mutators.FuncTester(v.TestMutant))
+	v.mutator(v.parseInfo, node, mutators.FuncTester(v.TestMutant))
 	return v
 }
