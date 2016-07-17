@@ -244,22 +244,24 @@ type worker struct {
 
 // Visitor is a struct that runs a particular mutation case on the ast.Package.
 type Visitor struct {
+	parseInfo mutators.ParseInfo
+
+	// this function should make a change to the ast.Node, call the 2nd argument
+	// function and change it back into the original ast.Node.
+	mutator mutators.Mutator
+
+	tester mutators.Tester
+
 	// the directory that this mutant should test into.
 	mutantDir string
 
 	originalDir string
-
-	parseInfo mutators.ParseInfo
 
 	// the packages, either len is 1 or 2, if it's 2 its because we have {{.}}
 	// and {{.}}_test
 	pkgs []*ast.Package
 
 	result Result
-
-	// this function should make a change to the ast.Node, call the 2nd argument
-	// function and change it back into the original ast.Node.
-	mutator mutators.Mutator
 }
 
 // Mutate starts mutating the source, it gets the mutators from the given
@@ -345,6 +347,8 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan st
 						TypesInfo:     info,
 					},
 				}
+				v.tester = mutators.FuncTester(v.TestMutant)
+
 				ast.Walk(v, file)
 				w.results <- v.result
 			}
@@ -440,6 +444,6 @@ func (v *Visitor) Visit(node ast.Node) ast.Visitor {
 		return v
 	}
 
-	v.mutator(v.parseInfo, node, mutators.FuncTester(v.TestMutant))
+	v.mutator(v.parseInfo, node, v.tester)
 	return v
 }

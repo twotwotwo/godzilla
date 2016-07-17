@@ -45,7 +45,8 @@ type ParseInfo struct {
 	TypesInfo     *types.Info
 }
 
-func coverageFilter(parseInfo ParseInfo, node ast.Node, tester Tester, mutator Mutator) {
+// covered returns true if the node is covered.
+func covered(parseInfo ParseInfo, node ast.Node) bool {
 	// only call the mutator if the code will ever be executed. Non-executed
 	// code is considered alive mutants, but don't bother checking or displaying
 	// the modification because code coverage shows you already what isn't
@@ -55,17 +56,18 @@ func coverageFilter(parseInfo ParseInfo, node ast.Node, tester Tester, mutator M
 		if block.Count > 0 &&
 			(block.StartLine < pos.Line || (block.StartLine == pos.Line && pos.Column >= block.StartCol)) &&
 			(block.EndLine > pos.Line || (block.EndLine == pos.Line && pos.Column <= block.EndCol)) {
-			mutator(parseInfo, node, tester)
+			return true
 		}
 	}
+	return false
 }
 
 // VoidCallRemoverMutator removes calls to void function/methods.
 func VoidCallRemoverMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
-	coverageFilter(parseInfo, node, tester, voidCallRemoverMutator)
-}
+	if !covered(parseInfo, node) {
+		return
+	}
 
-func voidCallRemoverMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
 	block, ok := node.(*ast.BlockStmt)
 	if !ok {
 		return
@@ -100,12 +102,10 @@ func voidCallRemoverMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
 // SwapIfElse swaps an ast node if body with the following else statement, if it
 // exists, it will not swap the else if body of an if/else if node.
 func SwapIfElse(parseInfo ParseInfo, node ast.Node, tester Tester) {
-	coverageFilter(parseInfo, node, tester, swapIfElse)
-}
+	if !covered(parseInfo, node) {
+		return
+	}
 
-// swapIfElse swaps an ast node if body with the following else statement, if it
-// exists, it will not swap the else if body of an if/else if node.
-func swapIfElse(_ ParseInfo, node ast.Node, tester Tester) {
 	// if its an if statement node
 	ifstmt, ok := node.(*ast.IfStmt)
 	if !ok {
@@ -130,15 +130,6 @@ func swapIfElse(_ ParseInfo, node ast.Node, tester Tester) {
 	ifstmt.Else = el
 }
 
-// ConditionalsBoundaryMutator performs
-//	<  to <=
-//	<= to <
-//	>  to >=
-//	>= to >
-func ConditionalsBoundaryMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
-	coverageFilter(parseInfo, node, tester, conditionalsBoundaryMutator)
-}
-
 var conditionalsBoundaryMutatorTable = map[token.Token]token.Token{
 	token.LSS: token.LEQ,
 	token.LEQ: token.LSS,
@@ -146,7 +137,16 @@ var conditionalsBoundaryMutatorTable = map[token.Token]token.Token{
 	token.GEQ: token.GTR,
 }
 
-func conditionalsBoundaryMutator(_ ParseInfo, node ast.Node, tester Tester) {
+// ConditionalsBoundaryMutator performs
+//	<  to <=
+//	<= to <
+//	>  to >=
+//	>= to >
+func ConditionalsBoundaryMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	if !covered(parseInfo, node) {
+		return
+	}
+
 	expr, ok := node.(*ast.BinaryExpr)
 	if !ok {
 		return
@@ -162,21 +162,6 @@ func conditionalsBoundaryMutator(_ ParseInfo, node ast.Node, tester Tester) {
 	tester.Test()
 
 	expr.Op = old
-}
-
-// MathMutator swaps various mathematical operators
-//	+   to -
-//	-   to +
-//	*   to /
-//	/   to *
-//	%   to *
-//	&   to |
-//	|   to &
-//	^   to &
-//	<<  to >>
-//	>>  to <<
-func MathMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
-	coverageFilter(parseInfo, node, tester, mathMutator)
 }
 
 var mathMutatorTable = map[token.Token]token.Token{
@@ -197,7 +182,22 @@ var mathMutatorTable = map[token.Token]token.Token{
 	token.SHR: token.SHL,
 }
 
-func mathMutator(_ ParseInfo, node ast.Node, tester Tester) {
+// MathMutator swaps various mathematical operators
+//	+   to -
+//	-   to +
+//	*   to /
+//	/   to *
+//	%   to *
+//	&   to |
+//	|   to &
+//	^   to &
+//	<<  to >>
+//	>>  to <<
+func MathMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	if !covered(parseInfo, node) {
+		return
+	}
+
 	expr, ok := node.(*ast.BinaryExpr)
 	if !ok {
 		return
@@ -215,19 +215,19 @@ func mathMutator(_ ParseInfo, node ast.Node, tester Tester) {
 	expr.Op = old
 }
 
-// BooleanOperatorsMutator swaps various mathematical operators.
-//	&&	to	||
-//	||	to	&&
-func BooleanOperatorsMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
-	coverageFilter(parseInfo, node, tester, booleanOperatorsMutator)
-}
-
 var booleanMutatorTable = map[token.Token]token.Token{
 	token.LAND: token.LOR,
 	token.LOR:  token.LAND,
 }
 
-func booleanOperatorsMutator(_ ParseInfo, node ast.Node, tester Tester) {
+// BooleanOperatorsMutator swaps various mathematical operators.
+//	&&	to	||
+//	||	to	&&
+func BooleanOperatorsMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	if !covered(parseInfo, node) {
+		return
+	}
+
 	expr, ok := node.(*ast.BinaryExpr)
 	if !ok {
 		return
@@ -243,11 +243,6 @@ func booleanOperatorsMutator(_ ParseInfo, node ast.Node, tester Tester) {
 	tester.Test()
 
 	expr.Op = old
-}
-
-// MathAssignMutator acts like MathMutator but on assignements.
-func MathAssignMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
-	coverageFilter(parseInfo, node, tester, mathAssignMutator)
 }
 
 var mathAssignementMutatorTable = map[token.Token]token.Token{
@@ -268,7 +263,12 @@ var mathAssignementMutatorTable = map[token.Token]token.Token{
 	token.SHR_ASSIGN: token.SHL_ASSIGN,
 }
 
-func mathAssignMutator(_ ParseInfo, node ast.Node, tester Tester) {
+// MathAssignMutator acts like MathMutator but on assignements.
+func MathAssignMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	if !covered(parseInfo, node) {
+		return
+	}
+
 	assign, ok := node.(*ast.AssignStmt)
 	if !ok {
 		return
@@ -286,11 +286,6 @@ func mathAssignMutator(_ ParseInfo, node ast.Node, tester Tester) {
 	assign.Tok = old
 }
 
-// NegateConditionalsMutator negates some boolean checks
-func NegateConditionalsMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
-	coverageFilter(parseInfo, node, tester, negateConditionalsMutator)
-}
-
 var negateConditionalsMutatorTable = map[token.Token]token.Token{
 	token.EQL: token.NEQ,
 	token.NEQ: token.EQL,
@@ -302,7 +297,12 @@ var negateConditionalsMutatorTable = map[token.Token]token.Token{
 	token.LEQ: token.GTR,
 }
 
-func negateConditionalsMutator(_ ParseInfo, node ast.Node, tester Tester) {
+// NegateConditionalsMutator negates some boolean checks
+func NegateConditionalsMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	if !covered(parseInfo, node) {
+		return
+	}
+
 	expr, ok := node.(*ast.BinaryExpr)
 	if !ok {
 		return
