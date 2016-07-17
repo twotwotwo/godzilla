@@ -155,6 +155,12 @@ func SwapIfElse(parseInfo ParseInfo, node ast.Node, tester Tester) {
 	if !ok {
 		return
 	}
+
+	// the condition is reached but nothing goes inside, don't mutate
+	if !covered(parseInfo, ifstmt) && !covered(parseInfo, el) {
+		return
+	}
+
 	// swap their body
 	ifstmt.Else = ifstmt.Body
 	ifstmt.Body = el
