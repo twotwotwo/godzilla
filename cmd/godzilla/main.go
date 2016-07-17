@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -147,6 +148,14 @@ func generateCoverprofile(pkg string) []*cover.Profile {
 }
 
 func main() {
+	sigs := make(chan os.Signal)
+	quit := make(chan struct{})
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		close(quit)
+	}()
+
 	cfg := getRunConfig()
 
 	sanityCheck(cfg)
@@ -201,7 +210,7 @@ func main() {
 	var wg sync.WaitGroup
 	for _, w := range workers {
 		wg.Add(1)
-		go w.Mutate(c, &wg)
+		go w.Mutate(c, &wg, quit)
 	}
 	go func() {
 		wg.Wait()
@@ -266,7 +275,7 @@ type Visitor struct {
 
 // Mutate starts mutating the source, it gets the mutators from the given
 // channel.
-func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup) {
+func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan struct{}) {
 	defer wg.Done()
 	// Parse the entire package
 	fset := token.NewFileSet()
@@ -327,38 +336,39 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup) {
 		}())
 	}*/
 
-	for m := range c {
+	for {
+		select {
+		case m := <-c:
+			for name, file := range pkg.Files {
+				var blocks []cover.ProfileBlock
+				for _, p := range w.coverprofiles {
+					if !strings.HasSuffix(name, p.FileName) {
+						continue
+					}
+					blocks = p.Blocks
+					break
+				}
 
-		for name, file := range pkg.Files {
-			var blocks []cover.ProfileBlock
-			for _, p := range w.coverprofiles {
-				if !strings.HasSuffix(name, p.FileName) {
+				v := &Visitor{
+					mutantDir:     w.mutantDir,
+					originalDir:   w.execDir,
+					fset:          fset,
+					pkgs:          spkgs,
+					mutator:       m,
+					coverprofiles: w.coverprofiles,
+					info:          info,
+					blocks:        blocks,
+				}
+				if strings.HasSuffix(name, "_test.go") {
 					continue
 				}
-				blocks = p.Blocks
-				break
-			}
-
-			v := &Visitor{
-				mutantDir:     w.mutantDir,
-				originalDir:   w.execDir,
-				fset:          fset,
-				pkgs:          spkgs,
-				mutator:       m,
-				coverprofiles: w.coverprofiles,
-				info:          info,
-				blocks:        blocks,
-			}
-			if strings.HasSuffix(name, "_test.go") {
-				continue
-			}
-			ast.Walk(v, file)
-			w.results <- Result{
-				alive: v.mutantAlive,
-				total: v.mutantCount,
+				ast.Walk(v, file)
+				w.results <- Result{
+					alive: v.mutantAlive,
+					total: v.mutantCount,
+				}
 			}
 		}
-
 	}
 }
 
