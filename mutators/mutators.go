@@ -57,22 +57,27 @@ func VoidCallRemoverMutator(v *types.Info, node ast.Node, testMutant func()) {
 // exists, it will not swap the else if body of an if/else if node.
 func SwapIfElse(_ *types.Info, node ast.Node, testMutant func()) {
 	// if its an if statement node
-	if ifstmt, ok := node.(*ast.IfStmt); ok {
-		// if theres an else
-		if ifstmt.Else != nil {
-			// if the else is not part of a elseif
-			if el, ok := ifstmt.Else.(*ast.BlockStmt); ok {
-				// swap their body
-				ifstmt.Else = ifstmt.Body
-				ifstmt.Body = el
-				// test that mutant
-				testMutant()
-				// swap back
-				ifstmt.Body = ifstmt.Else.(*ast.BlockStmt)
-				ifstmt.Else = el
-			}
-		}
+	ifstmt, ok := node.(*ast.IfStmt)
+	if !ok {
+		return
 	}
+	// if theres an else
+	if ifstmt.Else == nil {
+		return
+	}
+	// if the else is not part of a elseif
+	el, ok := ifstmt.Else.(*ast.BlockStmt)
+	if !ok {
+		return
+	}
+	// swap their body
+	ifstmt.Else = ifstmt.Body
+	ifstmt.Body = el
+	// test that mutant
+	testMutant()
+	// swap back
+	ifstmt.Body = ifstmt.Else.(*ast.BlockStmt)
+	ifstmt.Else = el
 }
 
 var conditionalsBoundaryMutatorTable = map[token.Token]token.Token{
