@@ -255,11 +255,7 @@ type Visitor struct {
 	// and {{.}}_test
 	pkgs []*ast.Package
 
-	// total number of mutant generated.
-	mutantCount int
-
-	// total number of mutant killed.
-	mutantAlive int
+	result Result
 
 	// this function should make a change to the ast.Node, call the 2nd argument
 	// function and change it back into the original ast.Node.
