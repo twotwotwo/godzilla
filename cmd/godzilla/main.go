@@ -102,7 +102,7 @@ func sanityCheck(cfg config) {
 				continue
 			}
 			cmd := exec.Command("gofmt", "-s", "-d", filepath.Join(cfg.pkgFull, finfo.Name()))
-			var b bytes.Buffer
+			var b bytes.Buffer // need a buffer because gofmt doesn't return non-zero on diff
 			cmd.Stdout = &b
 			if err := cmd.Run(); err != nil || b.Len() > 0 {
 				fmt.Printf("gofmt your package before running godzilla\n	gofmt -s -w %s\n", filepath.Join(cfg.pkgFull, "*go"))
@@ -418,9 +418,7 @@ func (t *tester) Test() {
 			filepath.Join(t.originalDir, finfo.Name()),
 			filepath.Join(t.mutantDir, finfo.Name()))
 		cmd.Stdout = os.Stdout
-		if err := cmd.Run(); err != nil {
-			fmt.Println(err)
-		}
+		cmd.Run()
 	}
 }
 
