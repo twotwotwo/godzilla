@@ -6,27 +6,50 @@ import (
 	"go/types"
 )
 
+// Mutators maps command line names to their mutators.
+var Mutators = map[string]Mutator{
+	"voidrm":     VoidCallRemoverMutator,
+	"swapifelse": SwapIfElse,
+	"condbound":  ConditionalsBoundaryMutator,
+	"math":       MathMutator,
+	"boolop":     BooleanOperatorsMutator,
+	"mathassign": MathAssignMutator,
+	"negcond":    NegateConditionalsMutator,
+}
+
 // Mutator is an operation that can be applied to go source to mutate it.
 type Mutator func(*types.Info, ast.Node, func())
 
-// VoidCallRemoverMutator removes calls to void function/methods
+// VoidCallRemoverMutator removes calls to void function/methods.
 func VoidCallRemoverMutator(v *types.Info, node ast.Node, testMutant func()) {
-	if block, ok := node.(*ast.BlockStmt); ok {
-		for i, stmt := range block.List {
-			if expr, ok := stmt.(*ast.ExprStmt); ok {
-				if v, ok := v.Types[expr.X]; ok {
-					if v.IsVoid() {
-						mutation := make([]ast.Stmt, len(block.List))
-						copy(mutation, block.List)
-						mutation = mutation[:i+copy(mutation[i:], mutation[i+1:])]
-						old := block.List
-						block.List = mutation
-						testMutant()
-						block.List = old
-					}
-				}
-			}
+	block, ok := node.(*ast.BlockStmt)
+	if !ok {
+		return
+	}
+	for i, stmt := range block.List {
+		expr, ok := stmt.(*ast.ExprStmt)
+		if !ok {
+			continue
 		}
+
+		v, ok := v.Types[expr.X]
+		if !ok {
+
+		}
+
+		if !v.IsVoid() {
+			continue
+		}
+
+		mutation := make([]ast.Stmt, len(block.List))
+		copy(mutation, block.List)
+		mutation = mutation[:i+copy(mutation[i:], mutation[i+1:])]
+		old := block.List
+		block.List = mutation
+
+		testMutant()
+
+		block.List = old
 	}
 }
 
@@ -207,10 +230,6 @@ func NegateConditionalsMutator(_ *types.Info, node ast.Node, testMutant func()) 
 /*
 i => -i
 */
-
-// Math Mutator
-/*
- */
 
 // Return Values Mutator
 /*

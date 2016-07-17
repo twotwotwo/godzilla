@@ -9,7 +9,6 @@ import (
 	"go/printer"
 	"go/token"
 	"go/types"
-	"golang.org/x/tools/cover"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -22,6 +21,7 @@ import (
 	"syscall"
 
 	"github.com/hydroflame/godzilla/mutators"
+	"golang.org/x/tools/cover"
 )
 
 const (
@@ -220,9 +220,8 @@ func main() {
 		res.alive += r.alive
 		res.total += r.total
 	}
-	if _, ok := <-quit; ok {
-		fmt.Printf("score: %d/%d = %.2f\n", res.total-res.alive, res.total, float64(res.total-res.alive)/float64(res.total))
-	}
+
+	fmt.Printf("score: %d/%d = %.2f\n", res.total-res.alive, res.total, float64(res.total-res.alive)/float64(res.total))
 }
 
 // Result is the data passed to the aggregator to sum the total number of mutant
@@ -451,9 +450,9 @@ func getExitCode(err error) int {
 		return 0
 	} else if e, ok := err.(*exec.ExitError); ok {
 		return e.Sys().(syscall.WaitStatus).ExitStatus()
-	} else {
-		panic(err)
 	}
+	// shouldn't really ever happen but if it does say it's an error.
+	return 1
 }
 
 // Visit simply forwards the node to the mutator func of the visitor. This
