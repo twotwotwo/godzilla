@@ -183,7 +183,7 @@ func main() {
 		}
 		workers = append(workers, worker{
 			mutantDir:     workdir,
-			execDir:       pkgPath,
+			originalDir:   pkgPath,
 			results:       results,
 			coverprofiles: coverprofiles,
 		})
@@ -235,7 +235,7 @@ type worker struct {
 	mutantDir string
 	// a reference to the original source, this is so if a test reads from a
 	// file in the package (like binary data) we don't break that.
-	execDir string
+	originalDir string
 
 	results chan Result
 
@@ -268,7 +268,7 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan st
 	defer wg.Done()
 	// Parse the entire package
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, w.execDir, nil, parser.AllErrors)
+	pkgs, err := parser.ParseDir(fset, w.originalDir, nil, parser.AllErrors)
 	if err != nil {
 		// the code compiled, so one of the mutant did not invert their changes
 		// correctly.
@@ -336,7 +336,7 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan st
 
 				v := &Visitor{
 					mutantDir:   w.mutantDir,
-					originalDir: w.execDir,
+					originalDir: w.originalDir,
 					pkgs:        spkgs,
 					mutator:     m,
 					parseInfo: mutators.ParseInfo{
