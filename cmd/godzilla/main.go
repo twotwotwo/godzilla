@@ -217,7 +217,7 @@ func main() {
 		res.total += r.total
 	}
 
-	fmt.Printf("score: %d/%d = %.2f%%\n", res.total-res.alive, res.total, float64(res.total-res.alive)/float64(res.total))
+	fmt.Printf("score: %.2f%% (%d killed, %d alive, %d total)\n", float64(res.total-res.alive)/float64(res.total), res.total-res.alive, res.alive, res.total)
 }
 
 // Result is the data passed to the aggregator to sum the total number of mutant
