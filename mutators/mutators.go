@@ -93,16 +93,21 @@ var conditionalsBoundaryMutatorTable = map[token.Token]token.Token{
 //	>  to >=
 //	>= to >
 func ConditionalsBoundaryMutator(_ *types.Info, node ast.Node, testMutant func()) {
-	if expr, ok := node.(*ast.BinaryExpr); ok {
-		old := expr.Op
-		op, ok := conditionalsBoundaryMutatorTable[expr.Op]
-		if !ok {
-			return
-		}
-		expr.Op = op
-		testMutant()
-		expr.Op = old
+	expr, ok := node.(*ast.BinaryExpr)
+	if !ok {
+		return
 	}
+
+	old := expr.Op
+	op, ok := conditionalsBoundaryMutatorTable[expr.Op]
+	if !ok {
+		return
+	}
+	expr.Op = op
+
+	testMutant()
+
+	expr.Op = old
 }
 
 var mathMutatorTable = map[token.Token]token.Token{
@@ -135,16 +140,21 @@ var mathMutatorTable = map[token.Token]token.Token{
 //	<<  to >>
 //	>>  to <<
 func MathMutator(_ *types.Info, node ast.Node, testMutant func()) {
-	if expr, ok := node.(*ast.BinaryExpr); ok {
-		old := expr.Op
-		op, ok := mathMutatorTable[expr.Op]
-		if !ok {
-			return
-		}
-		expr.Op = op
-		testMutant()
-		expr.Op = old
+	expr, ok := node.(*ast.BinaryExpr)
+	if !ok {
+		return
 	}
+
+	old := expr.Op
+	op, ok := mathMutatorTable[expr.Op]
+	if !ok {
+		return
+	}
+	expr.Op = op
+
+	testMutant()
+
+	expr.Op = old
 }
 
 var booleanMutatorTable = map[token.Token]token.Token{
@@ -156,16 +166,21 @@ var booleanMutatorTable = map[token.Token]token.Token{
 //	&&	to	||
 //	||	to	&&
 func BooleanOperatorsMutator(_ *types.Info, node ast.Node, testMutant func()) {
-	if expr, ok := node.(*ast.BinaryExpr); ok {
-		old := expr.Op
-		op, ok := booleanMutatorTable[expr.Op]
-		if !ok {
-			return
-		}
-		expr.Op = op
-		testMutant()
-		expr.Op = old
+	expr, ok := node.(*ast.BinaryExpr)
+	if !ok {
+		return
 	}
+
+	old := expr.Op
+	op, ok := booleanMutatorTable[expr.Op]
+	if !ok {
+		return
+	}
+	expr.Op = op
+
+	testMutant()
+
+	expr.Op = old
 }
 
 var mathAssignementMutatorTable = map[token.Token]token.Token{
@@ -188,16 +203,21 @@ var mathAssignementMutatorTable = map[token.Token]token.Token{
 
 // MathAssignMutator acts like MathMutator but on assignements.
 func MathAssignMutator(_ *types.Info, node ast.Node, testMutant func()) {
-	if assign, ok := node.(*ast.AssignStmt); ok {
-		old := assign.Tok
-		op, ok := mathAssignementMutatorTable[assign.Tok]
-		if !ok {
-			return
-		}
-		assign.Tok = op
-		testMutant()
-		assign.Tok = old
+	assign, ok := node.(*ast.AssignStmt)
+	if !ok {
+		return
 	}
+
+	old := assign.Tok
+	op, ok := mathAssignementMutatorTable[assign.Tok]
+	if !ok {
+		return
+	}
+	assign.Tok = op
+
+	testMutant()
+
+	assign.Tok = old
 }
 
 var negateConditionalsMutatorTable = map[token.Token]token.Token{
@@ -213,16 +233,21 @@ var negateConditionalsMutatorTable = map[token.Token]token.Token{
 
 // NegateConditionalsMutator negates some boolean checks
 func NegateConditionalsMutator(_ *types.Info, node ast.Node, testMutant func()) {
-	if expr, ok := node.(*ast.BinaryExpr); ok {
-		old := expr.Op
-		op, ok := negateConditionalsMutatorTable[expr.Op]
-		if !ok {
-			return
-		}
-		expr.Op = op
-		testMutant()
-		expr.Op = old
+	expr, ok := node.(*ast.BinaryExpr)
+	if !ok {
+		return
 	}
+
+	old := expr.Op
+	op, ok := negateConditionalsMutatorTable[expr.Op]
+	if !ok {
+		return
+	}
+	expr.Op = op
+
+	testMutant()
+
+	expr.Op = old
 }
 
 // Increments Mutator
