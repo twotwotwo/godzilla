@@ -75,7 +75,7 @@ func sanityCheck(cfg config) {
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "FAIL: go build %s", cfg.pkg)
+			fmt.Fprintf(os.Stderr, "FAILED: go build %s", cfg.pkg)
 			os.Exit(1)
 		}
 		// remove any binary generated
@@ -86,7 +86,7 @@ func sanityCheck(cfg config) {
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "FAIL: go test -short %s")
+			fmt.Fprintf(os.Stderr, "FAILED: go test -short %s")
 			os.Exit(1)
 		}
 	}
@@ -286,7 +286,7 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup) {
 
 	conf := types.Config{Importer: importer.Default()}
 	if _, err = conf.Check(pkg.Name, fset, files, info); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
+		fmt.Fprintln(os.Stderr, "Error determining ast types:", err.Error())
 		return
 	}
 
