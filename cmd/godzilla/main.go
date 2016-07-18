@@ -286,7 +286,7 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup) {
 
 	conf := types.Config{Importer: importer.Default()}
 	if _, err = conf.Check(pkg.Name, fset, files, info); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error)
+		fmt.Fprintln(os.Stderr, err.Error())
 		return
 	}
 
