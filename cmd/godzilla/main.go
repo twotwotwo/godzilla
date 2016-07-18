@@ -75,7 +75,7 @@ func sanityCheck(cfg config) {
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Failed to build package")
+			fmt.Fprintf(os.Stderr, "FAIL: go build %s", cfg.pkg)
 			os.Exit(1)
 		}
 		// remove any binary generated
@@ -86,7 +86,7 @@ func sanityCheck(cfg config) {
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Failed to test package")
+			fmt.Fprintf(os.Stderr, "FAIL: go test -short %s")
 			os.Exit(1)
 		}
 	}
