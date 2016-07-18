@@ -75,7 +75,7 @@ func sanityCheck(cfg config) {
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: go build %s", cfg.pkg)
+			fmt.Fprintf(os.Stderr, "FAILED: go build %s\n", cfg.pkg)
 			os.Exit(1)
 		}
 		// remove any binary generated
@@ -86,7 +86,7 @@ func sanityCheck(cfg config) {
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: go test -short %s")
+			fmt.Fprintf(os.Stderr, "FAILED: go test -short %s\n")
 			os.Exit(1)
 		}
 	}
@@ -351,11 +351,11 @@ func (t *tester) Test() {
 	baseName := filepath.Base(t.astFileName)
 	file, err := os.OpenFile(filepath.Join(t.mutantDir, baseName), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0700)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
+		fmt.Fprintf(os.Stderr, "Error opening %s: %s\n", baseName, err.Error())
 		return
 	}
 	if err = format.Node(file, t.fset, t.astFile); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
+		fmt.Fprintln(os.Stderr, "Error printing %s: %s\n", baseName, err.Error())
 		return
 	}
 
