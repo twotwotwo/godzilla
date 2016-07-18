@@ -35,22 +35,27 @@ type Fooer interface {
 
 type A struct{}
 
+// Myy myy myy myy
 func Myy() {}
 
+// Mii mii mii mii
 func Mii() A {
 	return A{}
 }
 
+// Moo moo moo moo
 func Moo() *A {
 	var a A
 	return &a
 }
 
+// Mee mee mee mee
 func Mee() A {
 	var a A
 	return a
 }
 
+// Maa maa maa maa
 func Maa() *A {
 	var a *A
 	return a

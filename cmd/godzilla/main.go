@@ -144,14 +144,6 @@ func generateCoverprofile(pkg string) []*cover.Profile {
 }
 
 func main() {
-	sigs := make(chan os.Signal)
-	quit := make(chan struct{})
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigs
-		close(quit)
-	}()
-
 	cfg := getRunConfig()
 
 	sanityCheck(cfg)
@@ -168,6 +160,12 @@ func main() {
 
 	var workers []worker
 	results := make(chan Result)
+	sigs := make(chan os.Signal)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		close(results)
+	}()
 
 	// generate the mutation worker.
 	for n := 0; n < runtime.NumCPU(); n++ {
@@ -206,7 +204,7 @@ func main() {
 	var wg sync.WaitGroup
 	for _, w := range workers {
 		wg.Add(1)
-		go w.Mutate(c, &wg, quit)
+		go w.Mutate(c, &wg)
 	}
 
 	// once they're done close the results.
@@ -254,12 +252,12 @@ type Visitor struct {
 
 // Mutate starts mutating the source, it gets the mutators from the given
 // channel.
-func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan struct{}) {
+func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	// Parse the entire package
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, w.originalDir, nil, parser.AllErrors)
+	pkgs, err := parser.ParseDir(fset, w.originalDir, nil, parser.ParseComments)
 	if err != nil {
 		// The code compiled, this should never happen
 		panic(err)
@@ -297,48 +295,40 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan st
 		return
 	}
 
-	for {
-		select {
-		case <-quit:
-			return
-		case m, ok := <-c:
-			if !ok {
-				return
+	for m := range c {
+		for name, file := range pkg.Files {
+			if strings.HasSuffix(name, "_test.go") {
+				continue
 			}
-			for name, file := range pkg.Files {
-				if strings.HasSuffix(name, "_test.go") {
+
+			// find the block we actually care about.
+			var blocks []cover.ProfileBlock
+			for _, p := range w.coverprofiles {
+				if !strings.HasSuffix(name, p.FileName) {
 					continue
 				}
-
-				// find the block we actually care about.
-				var blocks []cover.ProfileBlock
-				for _, p := range w.coverprofiles {
-					if !strings.HasSuffix(name, p.FileName) {
-						continue
-					}
-					blocks = p.Blocks
-					break
-				}
-
-				v := &Visitor{
-					mutator: m,
-					parseInfo: mutators.ParseInfo{
-						FileSet:       fset,
-						CoveredBlocks: blocks,
-						TypesInfo:     info,
-					},
-					tester: &tester{
-						mutantDir:   w.mutantDir,
-						originalDir: w.originalDir,
-						astFile:     file,
-						astFileName: name,
-						fset:        fset,
-					},
-				}
-
-				ast.Walk(v, file)
-				w.results <- v.tester.(*tester).result
+				blocks = p.Blocks
+				break
 			}
+
+			v := &Visitor{
+				mutator: m,
+				parseInfo: mutators.ParseInfo{
+					FileSet:       fset,
+					CoveredBlocks: blocks,
+					TypesInfo:     info,
+				},
+				tester: &tester{
+					mutantDir:   w.mutantDir,
+					originalDir: w.originalDir,
+					astFile:     file,
+					astFileName: name,
+					fset:        fset,
+				},
+			}
+
+			ast.Walk(v, file)
+			w.results <- v.tester.(*tester).result
 		}
 	}
 }
