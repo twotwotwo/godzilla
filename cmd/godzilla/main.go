@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
+	"go/format"
 	"go/importer"
 	"go/parser"
-	"go/printer"
 	"go/token"
 	"go/types"
 	"io/ioutil"
@@ -193,6 +193,8 @@ func main() {
 		mutators.MathAssignMutator,
 		mutators.VoidCallRemoverMutator,
 		mutators.BooleanOperatorsMutator,
+		//mutators.ReturnValueMutator,
+		//mutators.DebugInspect,
 	}
 	c := make(chan mutators.Mutator, len(mtrs))
 	for _, mutator := range mtrs {
@@ -327,7 +329,8 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan st
 					tester: &tester{
 						mutantDir:   w.mutantDir,
 						originalDir: w.originalDir,
-						pkgs:        spkgs,
+						astFile:     file,
+						astFileName: name,
 						fset:        fset,
 					},
 				}
@@ -347,7 +350,8 @@ type tester struct {
 
 	// the packages, either len is 1 or 2, if it's 2 its because we have {{.}}
 	// and {{.}}_test
-	pkgs []*ast.Package
+	astFile     *ast.File
+	astFileName string
 
 	fset *token.FileSet
 
@@ -356,28 +360,16 @@ type tester struct {
 
 // Test take the current ast.Package, rewrites the source and test it.
 func (t *tester) Test() {
-	// write all ast file to their equivalent in the mutant dir
-	for _, pkg := range t.pkgs {
-		for fullFileName, astFile := range pkg.Files {
-			fileName := filepath.Base(fullFileName)
-			file, err := os.OpenFile(filepath.Join(t.mutantDir, fileName), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0700)
-			if err != nil {
-				panic(err)
-			}
-			err = printer.Fprint(file, t.fset, astFile)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, err.Error())
-			}
-			// the output from ast doesn't always conform to gofmt ... so try to
-			// minimize the diff a maximum by gofmting the files.
-			fileName = filepath.Join(t.mutantDir, fileName)
-			cmd := exec.Command("gofmt", "-w", fileName)
-			if err := cmd.Run(); err != nil {
-				// that message is not expected to appear.
-				fmt.Println("gofmt error: ", fileName, err)
-				return
-			}
-		}
+	// rewrite all files in the mutant dir
+	baseName := filepath.Base(t.astFileName)
+	file, err := os.OpenFile(filepath.Join(t.mutantDir, baseName), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0700)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return
+	}
+	if err = format.Node(file, t.fset, t.astFile); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return
 	}
 
 	// Verify that the mutant we generated actually compiles
@@ -385,7 +377,8 @@ func (t *tester) Test() {
 	cmd.Dir = t.mutantDir
 	if err := cmd.Run(); err != nil {
 		// that message is not expected to appear. That implies one of the
-		// mutator build a code tree that doesn't compile.
+		// mutator build a code tree that doesn't compile. Ideally we could
+		// report the code generated and why it didn't compile.
 		fmt.Println("invalid build")
 		return
 	}
@@ -404,22 +397,11 @@ func (t *tester) Test() {
 	}
 	t.result.alive++
 
-	// make the diff
-	finfos, err := ioutil.ReadDir(t.mutantDir)
-	if err != nil {
-		return
-	}
-	for _, finfo := range finfos {
-		// really only check diff in non-test files
-		if strings.HasSuffix(finfo.Name(), "_test.go") {
-			continue
-		}
-		cmd := exec.Command("diff", "-u",
-			filepath.Join(t.originalDir, finfo.Name()),
-			filepath.Join(t.mutantDir, finfo.Name()))
-		cmd.Stdout = os.Stdout
-		cmd.Run()
-	}
+	cmd = exec.Command("diff", "-u",
+		filepath.Join(t.originalDir, baseName),
+		filepath.Join(t.mutantDir, baseName))
+	cmd.Stdout = os.Stdout
+	cmd.Run()
 }
 
 // getExitCode returns the exit code of an error returned by os/exec.Cmd.Run()

@@ -1,7 +1,14 @@
 package testpkg
 
+const bazoo = 3.0
+
 func (A) Foo() int {
+	_ = bazoo
+	Myy()
 	Mii()
+	Moo()
+	Mee()
+	Maa()
 	if a == 5 {
 		b := 2
 		b -= 0
@@ -28,13 +35,33 @@ type Fooer interface {
 
 type A struct{}
 
-func Mii() {}
+func Myy() {}
 
-func Bar() int {
+func Mii() A {
+	return A{}
+}
+
+func Moo() *A {
+	var a A
+	return &a
+}
+
+func Mee() A {
+	var a A
+	return a
+}
+
+func Maa() *A {
+	var a *A
+	return a
+}
+
+func Bar() (int, int) {
 	var a A
 	Mii()
+	Myy()
 	a.Foo()
-	return 3
+	return 0, 1
 }
 
 func Zoo1(a, b int) {
@@ -43,6 +70,6 @@ func Zoo1(a, b int) {
 
 func Zoo2() {
 	Zoo1(a, 0)
-	n := Bar()
-	_ = n
+	n, m := Bar()
+	_, _ = n, m
 }

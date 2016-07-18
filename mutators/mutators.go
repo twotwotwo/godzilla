@@ -1,10 +1,12 @@
 package mutators
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
 	"go/types"
 	"golang.org/x/tools/cover"
+	"regexp"
 )
 
 // Mutators maps command line names to their mutators.
@@ -359,6 +361,101 @@ func NegateConditionalsMutator(parseInfo ParseInfo, node ast.Node, tester Tester
 	tester.Test()
 
 	expr.Op = old
+}
+
+func DebugInspect(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	assign, ok := node.(*ast.AssignStmt)
+	if !ok {
+		return
+	}
+
+	pos := parseInfo.FileSet.Position(assign.Pos())
+	fmt.Println(pos)
+
+	if len(assign.Lhs) == 1 {
+		ident, ok := assign.Lhs[0].(*ast.Ident)
+		if !ok {
+			return
+		}
+		fmt.Printf("%#v\n", ident)
+	}
+}
+
+// ReturnValueMutator changes various return value. (eg. numbers become zero)
+func ReturnValueMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	if !covered(parseInfo, node) {
+		return
+	}
+
+	if block, ok := node.(*ast.BlockStmt); ok {
+		returnValueMutator(&block.List, parseInfo, tester)
+	}
+
+	// case bodies are not considered BlockStmt.
+	if casec, ok := node.(*ast.CaseClause); ok {
+		returnValueMutator(&casec.Body, parseInfo, tester)
+	}
+}
+
+var zeroRegexp = regexp.MustCompile(`^(0+(\.0*|))|(\.0+)$`)
+
+func returnValueMutator(stmts *[]ast.Stmt, parseInfo ParseInfo, tester Tester) {
+	for i, stmt := range *stmts {
+		ret, ok := stmt.(*ast.ReturnStmt)
+		if !ok {
+			continue
+		}
+		for _, expr := range ret.Results {
+			switch e := expr.(type) {
+			case *ast.BasicLit:
+				switch e.Kind {
+				case token.INT, token.FLOAT:
+					repl := "0"
+					if zeroRegexp.Match([]byte(e.Value)) {
+						repl = "1"
+					}
+
+					old := e.Value
+					e.Value = repl
+
+					tester.Test()
+
+					e.Value = old
+				}
+			case *ast.Ident:
+				switch t := parseInfo.TypesInfo.Types[expr].Type.(type) {
+				case *types.Basic:
+					unusedAssign := &ast.AssignStmt{
+						Lhs: []ast.Expr{&ast.Ident{Name: "_"}},
+						Rhs: []ast.Expr{&ast.Ident{Name: e.Name}},
+						Tok: token.ASSIGN, // assignment token, DEFINE
+						//TokPos: token.Pos,   // position of Tok
+					}
+					old := *stmts
+					nw := make([]ast.Stmt, len(*stmts))
+					copy(nw, old)
+
+					nw = append(nw, nil)
+					copy(nw[i+1:], nw[i:])
+					nw[i] = unusedAssign
+
+					*stmts = nw
+
+					tester.Test()
+
+					*stmts = old
+				case *types.Pointer:
+					fmt.Println(t)
+				case *types.Named:
+					fmt.Println(t)
+				default:
+					fmt.Printf("unknown ident type %T\n", parseInfo.TypesInfo.Types[expr].Type)
+				}
+			default:
+				fmt.Printf("unknown expr type %T\n", expr)
+			}
+		}
+	}
 }
 
 // Increments Mutator
