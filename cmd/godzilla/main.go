@@ -158,30 +158,13 @@ func main() {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	var workers []worker
-	results := make(chan Result)
+	results := make(chan result)
 	sigs := make(chan os.Signal)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigs
 		close(results)
 	}()
-
-	// generate the mutation worker.
-	for n := 0; n < runtime.NumCPU(); n++ {
-		workdir := filepath.Join(tmpDir, "gopath"+strconv.Itoa(n))
-		err := os.Mkdir(workdir, 0755)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, err.Error())
-			os.Exit(1)
-		}
-		workers = append(workers, worker{
-			mutantDir:     workdir,
-			originalDir:   cfg.pkgFull,
-			results:       results,
-			coverprofiles: coverprofiles,
-		})
-	}
 
 	// build all the mutators
 	mtrs := []mutators.Mutator{
@@ -194,6 +177,8 @@ func main() {
 		//mutators.ReturnValueMutator,
 		//mutators.DebugInspect,
 	}
+
+	// build the "list" of mutators.
 	c := make(chan mutators.Mutator, len(mtrs))
 	for _, mutator := range mtrs {
 		c <- mutator
@@ -202,7 +187,18 @@ func main() {
 
 	// launch all mutator worker.
 	var wg sync.WaitGroup
-	for _, w := range workers {
+	for n := 0; n < runtime.NumCPU(); n++ {
+		workdir := filepath.Join(tmpDir, "godzilla"+strconv.Itoa(n))
+		if err := os.Mkdir(workdir, 0755); err != nil {
+			fmt.Fprintf(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+		w := worker{
+			mutantDir:     workdir,
+			originalDir:   cfg.pkgFull,
+			results:       results,
+			coverprofiles: coverprofiles,
+		}
 		wg.Add(1)
 		go w.Mutate(c, &wg)
 	}
@@ -214,19 +210,20 @@ func main() {
 	}()
 
 	// aggregate the results.
-	var res Result
+	var res result
 	for r := range results {
 		res.alive += r.alive
 		res.total += r.total
+		res.skipped += r.skipped
 	}
 
-	fmt.Printf("score: %.2f%% (%d killed, %d alive, %d total)\n", float64(res.total-res.alive)/float64(res.total), res.total-res.alive, res.alive, res.total)
+	fmt.Printf("score: %.2f%% (%d killed, %d alive, %d total, %d skipped)\n", float64(res.total-res.alive)/float64(res.total), res.total-res.alive, res.alive, res.total, res.skipped)
 }
 
-// Result is the data passed to the aggregator to sum the total number of mutant
+// result is the data passed to the aggregator to sum the total number of mutant
 // executed and killed for a particular mutation.
-type Result struct {
-	alive, total int
+type result struct {
+	alive, total, skipped int
 }
 
 // worker is a type that works on a specific mutant folder and pulls mutators
@@ -238,16 +235,16 @@ type worker struct {
 	// file in the package (like binary data) we don't break that.
 	originalDir string
 
-	results chan Result
+	results chan result
 
 	coverprofiles []*cover.Profile
 }
 
-// Visitor is a struct that runs a particular mutation case on the ast.Package.
-type Visitor struct {
+// visitor is a struct that runs a particular mutation case on the ast.Package.
+type visitor struct {
 	parseInfo mutators.ParseInfo
 	mutator   mutators.Mutator
-	tester    mutators.Tester
+	tester    tester
 }
 
 // Mutate starts mutating the source, it gets the mutators from the given
@@ -266,13 +263,11 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup) {
 	// find the real package we want to mutate. because both {{.}} and
 	// {{.}}_test can exist in the same folder and it's a valid go package.
 	// However no more than 2 package can exist in the same folder.
-	spkgs := make([]*ast.Package, 0, len(pkgs))
 	var pkg *ast.Package
 	for _, p := range pkgs {
 		if !strings.HasSuffix(p.Name, "_test") {
 			pkg = p
 		}
-		spkgs = append(spkgs, p)
 	}
 
 	var files []*ast.File
@@ -297,6 +292,7 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup) {
 
 	for m := range c {
 		for name, file := range pkg.Files {
+			// don't mutate test files.
 			if strings.HasSuffix(name, "_test.go") {
 				continue
 			}
@@ -311,14 +307,14 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup) {
 				break
 			}
 
-			v := &Visitor{
+			v := &visitor{
 				mutator: m,
 				parseInfo: mutators.ParseInfo{
 					FileSet:       fset,
 					CoveredBlocks: blocks,
 					TypesInfo:     info,
 				},
-				tester: &tester{
+				tester: tester{
 					mutantDir:   w.mutantDir,
 					originalDir: w.originalDir,
 					astFile:     file,
@@ -328,7 +324,7 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup) {
 			}
 
 			ast.Walk(v, file)
-			w.results <- v.tester.(*tester).result
+			w.results <- v.tester.result
 		}
 	}
 }
@@ -346,7 +342,7 @@ type tester struct {
 
 	fset *token.FileSet
 
-	result Result
+	result result
 }
 
 // Test take the current ast.Package, rewrites the source and test it.
@@ -367,6 +363,7 @@ func (t *tester) Test() {
 	cmd := exec.Command("go", "build")
 	cmd.Dir = t.mutantDir
 	if err := cmd.Run(); err != nil {
+		t.result.skipped++
 		// that message is not expected to appear. That implies one of the
 		// mutator build a code tree that doesn't compile. Ideally we could
 		// report the code generated and why it didn't compile.
@@ -409,12 +406,12 @@ func getExitCode(err error) int {
 }
 
 // Visit simply forwards the node to the mutator func of the visitor. This
-// function makes *Visitor implement the ast.Visitor interface.
-func (v *Visitor) Visit(node ast.Node) ast.Visitor {
+// function makes *visitor implement the ast.Visitor interface.
+func (v *visitor) Visit(node ast.Node) ast.Visitor {
 	if node == nil { // sometimes called with nil for some reason.
 		return v
 	}
 
-	v.mutator(v.parseInfo, node, v.tester)
+	v.mutator(v.parseInfo, node, &v.tester)
 	return v
 }
