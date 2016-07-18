@@ -168,7 +168,7 @@ func main() {
 
 	var workers []worker
 	results := make(chan Result)
-	pkgPath := filepath.Join(cfg.gopath, "src", cfg.pkg)
+
 	// generate the mutation worker.
 	for n := 0; n < runtime.NumCPU(); n++ {
 		workdir := filepath.Join(tmpDir, "gopath"+strconv.Itoa(n))
@@ -179,7 +179,7 @@ func main() {
 		}
 		workers = append(workers, worker{
 			mutantDir:     workdir,
-			originalDir:   pkgPath,
+			originalDir:   cfg.pkgFull,
 			results:       results,
 			coverprofiles: coverprofiles,
 		})
@@ -208,11 +208,14 @@ func main() {
 		wg.Add(1)
 		go w.Mutate(c, &wg, quit)
 	}
+
+	// once they're done close the results.
 	go func() {
 		wg.Wait()
 		close(results)
 	}()
 
+	// aggregate the results.
 	var res Result
 	for r := range results {
 		res.alive += r.alive
@@ -228,6 +231,8 @@ type Result struct {
 	alive, total int
 }
 
+// worker is a type that works on a specific mutant folder and pulls mutators
+// from a channel
 type worker struct {
 	// the directory of the mutated source.
 	mutantDir string
@@ -251,12 +256,12 @@ type Visitor struct {
 // channel.
 func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan struct{}) {
 	defer wg.Done()
+
 	// Parse the entire package
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, w.originalDir, nil, parser.AllErrors)
 	if err != nil {
-		// the code compiled, so one of the mutant did not invert their changes
-		// correctly.
+		// The code compiled, this should never happen
 		panic(err)
 	}
 
@@ -270,9 +275,6 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan st
 			pkg = p
 		}
 		spkgs = append(spkgs, p)
-	}
-	if pkg == nil {
-		panic("package is nil")
 	}
 
 	var files []*ast.File
@@ -290,8 +292,7 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup, quit chan st
 	}
 
 	conf := types.Config{Importer: importer.Default()}
-	_, err = conf.Check(pkg.Name, fset, files, info)
-	if err != nil {
+	if _, err = conf.Check(pkg.Name, fset, files, info); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error)
 		return
 	}
@@ -392,11 +393,12 @@ func (t *tester) Test() {
 	cmd.Dir = t.mutantDir
 	t.result.total++
 	if getExitCode(cmd.Run()) != 0 {
-		// the tests failed, we're done
+		// the tests failed, the mutant is killed.
 		return
 	}
 	t.result.alive++
 
+	// Print the diff of the old and new file to the user.
 	cmd = exec.Command("diff", "-u",
 		filepath.Join(t.originalDir, baseName),
 		filepath.Join(t.mutantDir, baseName))
