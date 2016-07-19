@@ -471,6 +471,7 @@ var floatComparisonInverterMap = map[token.Token]token.Token{
 
 // FloatComparisonInverter applies De Morgan's law to floating point comparison
 // expressions the main job of this mutator is to uncover bad handling of NaN.
+// For more information see https://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html
 func FloatComparisonInverter(parseInfo ParseInfo, node ast.Node, tester Tester) {
 	if !covered(parseInfo, node) {
 		return
