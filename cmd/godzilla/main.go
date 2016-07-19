@@ -219,7 +219,7 @@ func main() {
 		res.skipped += r.skipped
 	}
 
-	fmt.Printf("score: %.1f%% (%d killed, %d alive, %d total, %d skipped)\n", float64(res.total-res.alive)/float64(res.total), res.total-res.alive, res.alive, res.total, res.skipped)
+	fmt.Printf("score: %.1f%% (%d killed, %d alive, %d total, %d skipped)\n", float64(res.total-res.alive)/float64(res.total)*100, res.total-res.alive, res.alive, res.total, res.skipped)
 }
 
 // result is the data passed to the aggregator to sum the total number of mutant
@@ -292,6 +292,22 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup) {
 		return
 	}
 
+	// write all files to the mutant directory
+	for _, pkg := range pkgs {
+		for fullFileName, astFile := range pkg.Files {
+			baseName := filepath.Base(fullFileName)
+			file, err := os.OpenFile(filepath.Join(w.mutantDir, baseName), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0700)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error opening %s: %s\n", baseName, err.Error())
+				return
+			}
+			if err = format.Node(file, fset, astFile); err != nil {
+				fmt.Fprintln(os.Stderr, "Error printing %s: %s\n", baseName, err.Error())
+				return
+			}
+		}
+	}
+
 	for m := range c {
 		for name, file := range pkg.Files {
 			// don't mutate test files.
@@ -349,7 +365,7 @@ type tester struct {
 
 // Test take the current ast.Package, rewrites the source and test it.
 func (t *tester) Test() {
-	// rewrite all files in the mutant dir
+	// rewrite file in the mutant dir
 	baseName := filepath.Base(t.astFileName)
 	file, err := os.OpenFile(filepath.Join(t.mutantDir, baseName), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0700)
 	if err != nil {
