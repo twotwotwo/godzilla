@@ -458,6 +458,142 @@ func returnValueMutator(stmts *[]ast.Stmt, parseInfo ParseInfo, tester Tester) {
 	}
 }
 
+var floatComparisonInverterMap = map[token.Token]token.Token{
+	token.EQL: token.NEQ,
+	token.NEQ: token.EQL,
+
+	token.LSS: token.GEQ,
+	token.GEQ: token.LSS,
+
+	token.LEQ: token.GTR,
+	token.GTR: token.LEQ,
+}
+
+// FloatComparisonInverter applies De Morgan's law to floating point comparison
+// expressions the main job of this mutator is to uncover bad handling of NaN.
+func FloatComparisonInverter(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	/*if expr, ok := node.(ast.Expr); ok {
+		t, ok := parseInfo.TypesInfo.Types[expr]
+		if !ok {
+			return
+		}
+
+		b, ok := t.Type.(*types.Basic)
+		if !ok {
+			return
+		}
+
+		if b.Kind() != types.Bool {
+			return
+		}
+		floatComparisonInverter(expr, parseInfo, node, tester)
+	}*/
+	if block, ok := node.(*ast.BlockStmt); ok {
+		for i := range block.List {
+			switch stmt := block.List[i].(type) {
+			case *ast.AssignStmt:
+				for j := range stmt.Rhs {
+					t, ok := parseInfo.TypesInfo.Types[stmt.Rhs[j]]
+					if !ok {
+						return
+					}
+
+					basic, ok := t.Type.(*types.Basic)
+					if !ok {
+						return
+					}
+
+					if basic.Kind() != types.Bool {
+						return
+					}
+
+					floatComparisonInverter(&stmt.Rhs[j], parseInfo, node, tester)
+				}
+			}
+		}
+	}
+
+	if ifstmt, ok := node.(*ast.IfStmt); ok {
+		floatComparisonInverter(&ifstmt.Cond, parseInfo, node, tester)
+	}
+}
+
+// floatComparisonInverter takes a pointer to a expression that evaluates to a
+// bool and inverts it if it's a comparison between 2 floating point (or
+// something like "!(f0 > f1)")
+func floatComparisonInverter(expr *ast.Expr, parseInfo ParseInfo, node ast.Node, tester Tester) {
+	switch e := (*expr).(type) {
+	case *ast.BinaryExpr:
+		binary := e
+		switch binary.Op {
+		case token.LOR, token.LAND:
+			// recurse
+			floatComparisonInverter(&binary.X, parseInfo, node, tester)
+			floatComparisonInverter(&binary.Y, parseInfo, node, tester)
+		case token.EQL, token.LSS, token.GTR, token.NEQ, token.LEQ, token.GEQ:
+			tx, ok := parseInfo.TypesInfo.Types[binary.X]
+			if !ok {
+				return
+			}
+
+			bx, ok := tx.Type.(*types.Basic)
+			if !ok {
+				return
+			}
+
+			if k := bx.Kind(); k != types.Float32 && k != types.Float64 {
+				return
+			}
+
+			// kinda redundant but make sure we're doing something valid.
+			ty, ok := parseInfo.TypesInfo.Types[binary.Y]
+			if !ok {
+				return
+			}
+
+			by, ok := ty.Type.(*types.Basic)
+			if !ok {
+				return
+			}
+
+			if by.Kind() != bx.Kind() {
+				return
+			}
+
+			old := *expr
+
+			*expr = &ast.UnaryExpr{
+				Op: token.NOT,
+				X: &ast.BinaryExpr{
+					X:  binary.X,
+					Op: floatComparisonInverterMap[binary.Op],
+					Y:  binary.Y,
+				},
+			}
+
+			tester.Test()
+
+			*expr = old
+
+			printPos(parseInfo, *expr)
+		}
+	case *ast.UnaryExpr:
+		if e.Op != token.NOT {
+			return
+		}
+		floatComparisonInverter(&e.X, parseInfo, node, tester)
+	case *ast.ParenExpr:
+		floatComparisonInverter(&e.X, parseInfo, node, tester)
+	}
+}
+
+// printPos is a debug function that allows me to quickly see the position of a
+// specific statement.
+func printPos(parseInfo ParseInfo, n ast.Node) {
+	pos := parseInfo.FileSet.Position(n.Pos())
+	fmt.Println(pos.String())
+}
+
 // Increments Mutator
 /*
 ++

@@ -2,8 +2,20 @@ package testpkg
 
 const bazoo = 3.0
 
+var (
+	f0, f1 float32 = 0, 1
+)
+
 func (A) Foo() int {
+	_ = (f0 < f1) || f1 > f0
 	_ = bazoo
+	if !(!(f0 < f1)) {
+	}
+
+	switch {
+	case f0 < f1:
+		_ = bazoo
+	}
 	Myy()
 	Mii()
 	Moo()

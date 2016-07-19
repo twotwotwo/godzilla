@@ -174,6 +174,7 @@ func main() {
 		mutators.MathAssignMutator,
 		mutators.VoidCallRemoverMutator,
 		mutators.BooleanOperatorsMutator,
+		mutators.FloatComparisonInverter,
 		//mutators.ReturnValueMutator,
 		//mutators.DebugInspect,
 	}
