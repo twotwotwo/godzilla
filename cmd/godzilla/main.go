@@ -175,6 +175,7 @@ func main() {
 		mutators.VoidCallRemoverMutator,
 		mutators.BooleanOperatorsMutator,
 		mutators.FloatComparisonInverter,
+		mutators.NegateConditionalsMutator,
 		//mutators.ReturnValueMutator,
 		//mutators.DebugInspect,
 	}

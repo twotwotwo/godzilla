@@ -16,7 +16,7 @@ then to run it:
 The Swap If Else mutator swaps the body of an if/else statement
 
 ### Void Call Remover
-The void call remover removes all the void function and method call.
+The void call remover removes all the void function call.
 
 ### Boolean Operators
 The boolean operators mutator swaps boolean operators.
