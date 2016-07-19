@@ -472,22 +472,9 @@ var floatComparisonInverterMap = map[token.Token]token.Token{
 // FloatComparisonInverter applies De Morgan's law to floating point comparison
 // expressions the main job of this mutator is to uncover bad handling of NaN.
 func FloatComparisonInverter(parseInfo ParseInfo, node ast.Node, tester Tester) {
-	/*if expr, ok := node.(ast.Expr); ok {
-		t, ok := parseInfo.TypesInfo.Types[expr]
-		if !ok {
-			return
-		}
-
-		b, ok := t.Type.(*types.Basic)
-		if !ok {
-			return
-		}
-
-		if b.Kind() != types.Bool {
-			return
-		}
-		floatComparisonInverter(expr, parseInfo, node, tester)
-	}*/
+	if !covered(parseInfo, node) {
+		return
+	}
 	if block, ok := node.(*ast.BlockStmt); ok {
 		for i := range block.List {
 			switch stmt := block.List[i].(type) {
