@@ -79,3 +79,18 @@ The negate conditionals mutator converts boolean checks to their inverse.
 | <= | > |
 | > | <= |
 | >= | < |
+
+### Float comparison inverter
+The float comparison inverter mutator inverts float comparison to their equivalent via De morgan's law. These are actually not equivalent because NaN will return true in one case and false on the other. The main purpose of this mutator is to root out cases where NaN isn't well handled.
+
+
+| Original | New |
+|----------|-----|
+| f > g | !(f <= g) |
+| f >= g | !(f < g) |
+| f < g | !(f >= g) |
+| f <= g | !(f > g) |
+| !(f <= g) | f > g |
+| !(f < g)| f >= g  |
+| !(f >= g)| f < g  |
+| !(f > g)| f <= g  |
