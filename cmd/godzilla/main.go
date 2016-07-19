@@ -219,7 +219,7 @@ func main() {
 		res.skipped += r.skipped
 	}
 
-	fmt.Printf("score: %.2f%% (%d killed, %d alive, %d total, %d skipped)\n", float64(res.total-res.alive)/float64(res.total), res.total-res.alive, res.alive, res.total, res.skipped)
+	fmt.Printf("score: %.1f%% (%d killed, %d alive, %d total, %d skipped)\n", float64(res.total-res.alive)/float64(res.total), res.total-res.alive, res.alive, res.total, res.skipped)
 }
 
 // result is the data passed to the aggregator to sum the total number of mutant

@@ -36,5 +36,22 @@
 // detected the change godzilla introduced. If the tests pass however it might
 // be either because your tests are not testing the mutated statement properly
 // (eg. ignoring return values) or godzilla created an equivalent mutant. Code
-// that is not covered is not mutated.
+// that is not covered is not mutated. godzilla will try to detect equivalent
+// mutant as best it can, however some will slip through the crack.
+//
+// Most of the output from godzilla is diff -u of the mutated file and the
+// original file
+//	--- a.go	2016-07-19 02:46:07.000000000 -0400
+//	+++ a.go	2016-07-19 14:20:31.000000000 -0400
+//	@@ -21,7 +21,7 @@
+//	 	Moo()
+//	 	Mee()
+//	 	Maa()
+//	-	if a == 5 {
+//	+	if a != 5 {
+//	 		b := 2
+//	 		b -= 0
+//	 		return b
+// as well as the final mutation score of your package
+//	score: 50.0% (9 killed, 9 alive, 18 total, 0 skipped)
 package godzilla
