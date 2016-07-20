@@ -274,36 +274,6 @@ func MathMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
 	expr.Op = old
 }
 
-var booleanMutatorTable = map[token.Token]token.Token{
-	token.LAND: token.LOR,
-	token.LOR:  token.LAND,
-}
-
-// BooleanOperatorsMutator swaps various mathematical operators.
-//	&&	to	||
-//	||	to	&&
-func BooleanOperatorsMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
-	if !covered(parseInfo, node) {
-		return
-	}
-
-	expr, ok := node.(*ast.BinaryExpr)
-	if !ok {
-		return
-	}
-
-	old := expr.Op
-	op, ok := booleanMutatorTable[expr.Op]
-	if !ok {
-		return
-	}
-	expr.Op = op
-
-	tester.Test()
-
-	expr.Op = old
-}
-
 var mathAssignementMutatorTable = map[token.Token]token.Token{
 	token.ADD_ASSIGN: token.SUB_ASSIGN,
 	token.SUB_ASSIGN: token.ADD_ASSIGN,
@@ -338,11 +308,59 @@ func MathAssignMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
 	if !ok {
 		return
 	}
+
+	if len(assign.Rhs) > 1 {
+		// This is an odd case because `f0, f1 += 1, 2` is actually not
+		// valid go code
+		return
+	}
+
+	switch assign.Tok {
+	case token.ADD_ASSIGN, token.SUB_ASSIGN:
+		if isZero(assign.Rhs[0]) {
+			return
+		}
+	case token.MUL_ASSIGN, token.QUO_ASSIGN:
+		if isOne(assign.Rhs[0]) {
+			return
+		}
+	}
+
 	assign.Tok = op
 
 	tester.Test()
 
 	assign.Tok = old
+}
+
+var booleanMutatorTable = map[token.Token]token.Token{
+	token.LAND: token.LOR,
+	token.LOR:  token.LAND,
+}
+
+// BooleanOperatorsMutator swaps various mathematical operators.
+//	&&	to	||
+//	||	to	&&
+func BooleanOperatorsMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	if !covered(parseInfo, node) {
+		return
+	}
+
+	expr, ok := node.(*ast.BinaryExpr)
+	if !ok {
+		return
+	}
+
+	old := expr.Op
+	op, ok := booleanMutatorTable[expr.Op]
+	if !ok {
+		return
+	}
+	expr.Op = op
+
+	tester.Test()
+
+	expr.Op = old
 }
 
 var negateConditionalsMutatorTable = map[token.Token]token.Token{

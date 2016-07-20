@@ -6,6 +6,52 @@ var (
 	f0, f1 float32 = 0, 1
 )
 
+func NoUseless() {
+	var f0 int = 1
+	var f1 int64 = 1
+
+	f0 = f0 + 0
+	f0 = f0 - 0
+	f0 = 0 + f0
+	f0 = 0 - f0
+
+	f1 = f1 + 0
+	f1 = f1 - 0
+	f1 = 0 + f1
+	f1 = 0 - f1
+
+	f0 = f0 * 1
+	f0 = 1 * f0
+	f0 = f0 / 1
+	f0 = 1 / f0 // this one should appear
+
+	f1 = f1 * 1
+	f1 = 1 * f1
+	f1 = f1 / 1
+	f1 = 1 / f1 // this one should appear
+
+	if f0+0 == 0 {
+	} else if 0 == 1*f0 {
+	}
+
+	if f1+0 == 0 {
+	} else if 0 == 1*f1 {
+	}
+
+	switch {
+	case f0+0 == 0:
+	case f0*1 == 0:
+	}
+
+	switch {
+	case f1+0 == 0:
+	case f1*1 == 0:
+	}
+
+	go func(int) {}(f0 + 0)
+	go func(int64) {}(f1 + 0)
+}
+
 func (A) Foo() int {
 	f0 = f0 + 0
 	_ = (f0 < f1) || f1 > f0

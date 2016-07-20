@@ -7,6 +7,7 @@ import (
 func TestFoo(t *testing.T) {
 	var a A
 	a.Foo()
+	NoUseless()
 }
 
 func TestBar(t *testing.T) {

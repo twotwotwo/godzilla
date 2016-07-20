@@ -87,7 +87,7 @@ func sanityCheck(cfg config) {
 		cmd.Stderr = os.Stderr
 		err := cmd.Run()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "FAILED: go test -short %s\n")
+			fmt.Fprintf(os.Stderr, "FAILED: go test -short %s\n", cfg.pkg)
 			os.Exit(1)
 		}
 	}
