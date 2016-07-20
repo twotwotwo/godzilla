@@ -178,6 +178,7 @@ func main() {
 		godzilla.BooleanOperatorsMutator,
 		godzilla.NegateConditionalsMutator,
 		godzilla.FloatComparisonInverter,
+		godzilla.SwapSwitchCase,
 		//godzilla.ReturnValueMutator,
 		//godzilla.DebugInspect,
 	}
