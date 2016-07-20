@@ -548,6 +548,9 @@ func FloatComparisonInverter(parseInfo ParseInfo, node ast.Node, tester Tester) 
 	}
 
 	if ifstmt, ok := node.(*ast.IfStmt); ok {
+		// BUG(hydroflame): There was a bug where the parseInfo.TypesInfo.Types
+		// did not have an entry for the expression of the ifstmt. It's quite
+		// obviously a bool anyway. So let's just skip it :)
 		floatComparisonInverter(&ifstmt.Cond, parseInfo, node, tester)
 	}
 
