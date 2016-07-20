@@ -508,26 +508,40 @@ func FloatComparisonInverter(parseInfo ParseInfo, node ast.Node, tester Tester) 
 	if !covered(parseInfo, node) {
 		return
 	}
+	isBool := func(expr ast.Expr) bool {
+		t, ok := parseInfo.TypesInfo.Types[expr]
+		if !ok {
+			return false
+		}
+
+		basic, ok := t.Type.(*types.Basic)
+		if !ok {
+			return false
+		}
+
+		if basic.Kind() != types.Bool {
+			return false
+		}
+		return true
+	}
 	if block, ok := node.(*ast.BlockStmt); ok {
 		for i := range block.List {
 			switch stmt := block.List[i].(type) {
 			case *ast.AssignStmt:
 				for j := range stmt.Rhs {
-					t, ok := parseInfo.TypesInfo.Types[stmt.Rhs[j]]
-					if !ok {
-						return
-					}
-
-					basic, ok := t.Type.(*types.Basic)
-					if !ok {
-						return
-					}
-
-					if basic.Kind() != types.Bool {
+					if !isBool(stmt.Rhs[j]) {
 						return
 					}
 
 					floatComparisonInverter(&stmt.Rhs[j], parseInfo, node, tester)
+				}
+			case *ast.CaseClause:
+				for j, expr := range stmt.List {
+					if !isBool(expr) {
+						return
+					}
+
+					floatComparisonInverter(&stmt.List[j], parseInfo, node, tester)
 				}
 			}
 		}
@@ -536,6 +550,15 @@ func FloatComparisonInverter(parseInfo ParseInfo, node ast.Node, tester Tester) 
 	if ifstmt, ok := node.(*ast.IfStmt); ok {
 		floatComparisonInverter(&ifstmt.Cond, parseInfo, node, tester)
 	}
+
+	if send, ok := node.(*ast.SendStmt); ok {
+		if !isBool(send.Value) {
+			return
+		}
+
+		floatComparisonInverter(&send.Value, parseInfo, node, tester)
+	}
+
 }
 
 // floatComparisonInverter takes a pointer to a expression that evaluates to a

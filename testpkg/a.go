@@ -6,6 +6,34 @@ var (
 	f0, f1 float32 = 0, 1
 )
 
+func FloatComparisonInvert() {
+	var f0, f1 float32
+	var g0, g1 float64
+	var b bool
+	_ = b
+
+	b = f0 == f1
+	b = !(g0 <= g1)
+
+	if f0 == f1 {
+	}
+	if !(g0 >= g1) {
+	}
+
+	func(bool) {}(f0 > f1)
+	func(bool) {}(!(g0 <= g1))
+
+	c := make(chan bool, 100)
+
+	c <- f0 > f1
+	c <- !(g0 <= g1)
+
+	switch {
+	case f0 == f1:
+	case !(g0 <= g1):
+	}
+}
+
 func NoUseless() {
 	var f0 int = 1
 	var f1 int64 = 1

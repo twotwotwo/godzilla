@@ -8,6 +8,7 @@ func TestFoo(t *testing.T) {
 	var a A
 	a.Foo()
 	NoUseless()
+	FloatComparisonInvert()
 }
 
 func TestBar(t *testing.T) {
