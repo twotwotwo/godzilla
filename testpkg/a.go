@@ -7,6 +7,7 @@ var (
 )
 
 func (A) Foo() int {
+	f0 = f0 + 0
 	_ = (f0 < f1) || f1 > f0
 	_ = bazoo
 	if !(!(f0 < f1)) {

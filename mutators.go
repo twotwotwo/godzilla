@@ -1,4 +1,4 @@
-package mutators
+package godzilla
 
 import (
 	"fmt"
@@ -251,6 +251,22 @@ func MathMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
 	if !ok {
 		return
 	}
+
+	switch expr.Op {
+	case token.ADD, token.SUB:
+		if isZero(expr.X) || isZero(expr.Y) {
+			return
+		}
+	case token.MUL:
+		if isOne(expr.X) || isOne(expr.Y) {
+			return
+		}
+	case token.QUO:
+		if isOne(expr.Y) {
+			return
+		}
+	}
+
 	expr.Op = op
 
 	tester.Test()
@@ -396,8 +412,6 @@ func ReturnValueMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
 		returnValueMutator(&casec.Body, parseInfo, tester)
 	}
 }
-
-var zeroRegexp = regexp.MustCompile(`^(0+(\.0*|))|(\.0+)$`)
 
 func returnValueMutator(stmts *[]ast.Stmt, parseInfo ParseInfo, tester Tester) {
 	for i, stmt := range *stmts {
@@ -573,6 +587,36 @@ func floatComparisonInverter(expr *ast.Expr, parseInfo ParseInfo, node ast.Node,
 	case *ast.ParenExpr:
 		floatComparisonInverter(&e.X, parseInfo, node, tester)
 	}
+}
+
+var zeroRegexp = regexp.MustCompile(`^(0+(\.0*|))|(\.0+)$`)
+
+// isZero returns true if the expression is a literal representing "0".
+func isZero(e ast.Expr) bool {
+	lit, ok := e.(*ast.BasicLit)
+	if !ok {
+		return false
+	}
+	switch lit.Kind {
+	case token.INT, token.FLOAT:
+		return zeroRegexp.Match([]byte(lit.Value))
+	}
+	return false
+}
+
+var oneRegexp = regexp.MustCompile(`^1(\.0+|)$`)
+
+func isOne(e ast.Expr) bool {
+	lit, ok := e.(*ast.BasicLit)
+	if !ok {
+		return false
+	}
+	switch lit.Kind {
+	case token.INT, token.FLOAT:
+		return oneRegexp.Match([]byte(lit.Value))
+	default:
+	}
+	return false
 }
 
 // printPos is a debug function that allows me to quickly see the position of a

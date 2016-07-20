@@ -19,8 +19,9 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
-	"github.com/hydroflame/godzilla/mutators"
+	"github.com/hydroflame/godzilla"
 	"golang.org/x/tools/cover"
 )
 
@@ -144,6 +145,7 @@ func generateCoverprofile(pkg string) []*cover.Profile {
 }
 
 func main() {
+	start := time.Now()
 	cfg := getRunConfig()
 
 	sanityCheck(cfg)
@@ -167,21 +169,21 @@ func main() {
 	}()
 
 	// build all the mutators
-	mtrs := []mutators.Mutator{
-		mutators.SwapIfElse,
-		mutators.ConditionalsBoundaryMutator,
-		mutators.MathMutator,
-		mutators.MathAssignMutator,
-		mutators.VoidCallRemoverMutator,
-		mutators.BooleanOperatorsMutator,
-		mutators.FloatComparisonInverter,
-		mutators.NegateConditionalsMutator,
-		//mutators.ReturnValueMutator,
-		//mutators.DebugInspect,
+	mtrs := []godzilla.Mutator{
+		godzilla.SwapIfElse,
+		godzilla.ConditionalsBoundaryMutator,
+		godzilla.MathMutator,
+		godzilla.MathAssignMutator,
+		godzilla.VoidCallRemoverMutator,
+		godzilla.BooleanOperatorsMutator,
+		godzilla.FloatComparisonInverter,
+		godzilla.NegateConditionalsMutator,
+		//godzilla.ReturnValueMutator,
+		//godzilla.DebugInspect,
 	}
 
 	// build the "list" of mutators.
-	c := make(chan mutators.Mutator, len(mtrs))
+	c := make(chan godzilla.Mutator, len(mtrs))
 	for _, mutator := range mtrs {
 		c <- mutator
 	}
@@ -201,8 +203,12 @@ func main() {
 			results:       results,
 			coverprofiles: coverprofiles,
 		}
+
 		wg.Add(1)
-		go w.Mutate(c, &wg)
+		go func() {
+			defer wg.Done()
+			w.Mutate(c)
+		}()
 	}
 
 	// once they're done close the results.
@@ -219,7 +225,7 @@ func main() {
 		res.skipped += r.skipped
 	}
 
-	fmt.Printf("score: %.1f%% (%d killed, %d alive, %d total, %d skipped)\n", float64(res.total-res.alive)/float64(res.total)*100, res.total-res.alive, res.alive, res.total, res.skipped)
+	fmt.Printf("score: %.1f%% (%d killed, %d alive, %d total, %d skipped) in %s\n", float64(res.total-res.alive)/float64(res.total)*100, res.total-res.alive, res.alive, res.total, res.skipped, time.Since(start).String())
 }
 
 // result is the data passed to the aggregator to sum the total number of mutant
@@ -244,16 +250,14 @@ type worker struct {
 
 // visitor is a struct that runs a particular mutation case on the ast.Package.
 type visitor struct {
-	parseInfo mutators.ParseInfo
-	mutator   mutators.Mutator
+	parseInfo godzilla.ParseInfo
+	mutator   godzilla.Mutator
 	tester    tester
 }
 
 // Mutate starts mutating the source, it gets the mutators from the given
 // channel.
-func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func (w worker) Mutate(c chan godzilla.Mutator) {
 	// Parse the entire package
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, w.originalDir, nil, parser.ParseComments)
@@ -327,7 +331,7 @@ func (w worker) Mutate(c chan mutators.Mutator, wg *sync.WaitGroup) {
 
 			v := &visitor{
 				mutator: m,
-				parseInfo: mutators.ParseInfo{
+				parseInfo: godzilla.ParseInfo{
 					FileSet:       fset,
 					CoveredBlocks: blocks,
 					TypesInfo:     info,
