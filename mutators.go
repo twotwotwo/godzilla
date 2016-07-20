@@ -21,6 +21,11 @@ var Mutators = map[string]Desc{
 		Name:        "swapifelse",
 		Description: "Swaps content of if/else statements.",
 	},
+	"swapswitch": Desc{
+		M:           SwapSwitchCase,
+		Name:        "swapswitchcase",
+		Description: "Swaps switch case conditions.",
+	},
 	"condbound": Desc{
 		M:           ConditionalsBoundaryMutator,
 		Name:        "condbound",
@@ -133,6 +138,46 @@ func VoidCallRemoverMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
 		tester.Test()
 
 		block.List = old
+	}
+}
+
+// SwapSwitchCase consecutively swaps each case body with the next
+func SwapSwitchCase(parseInfo ParseInfo, node ast.Node, tester Tester) {
+	if !covered(parseInfo, node) {
+		return
+	}
+
+	// if its a switch statement node
+	stmt, ok := node.(*ast.SwitchStmt)
+	if !ok {
+		return
+	}
+
+	// not enough candidates to swap
+	if len(stmt.Body.List) < 2 {
+		return
+	}
+
+	// swap case expr with the next and test, keep looping until done
+	// alternatively, could switch them all and only test once, but that means
+	// if only one test passes, then all cases would be considered a pass
+	for i := range stmt.Body.List {
+		// get the next element's index
+		j := (i + 1) % len(stmt.Body.List)
+
+		a := stmt.Body.List[i].(*ast.CaseClause)
+		b := stmt.Body.List[j].(*ast.CaseClause)
+
+		if !covered(parseInfo, a) && !covered(parseInfo, b) {
+			continue
+		}
+
+		// swap body
+		a.Body, b.Body = b.Body, a.Body
+		// test
+		tester.Test()
+		// swap back
+		a.Body, b.Body = b.Body, a.Body
 	}
 }
 
