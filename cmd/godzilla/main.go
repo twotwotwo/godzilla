@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/format"
@@ -25,6 +26,10 @@ import (
 	"golang.org/x/tools/cover"
 )
 
+var (
+	diffonlyinvalid = flag.Bool("diffonlyinvalid", false, "debug flag, this prints only the invalid builds produced")
+)
+
 type config struct {
 	// The importable name of the package to irradiate.
 	pkg string
@@ -44,10 +49,11 @@ func getRunConfig() config {
 		os.Exit(1)
 	}
 
+	flag.Parse()
 	// find the package to mutest.
 	var pkg string
-	if len(os.Args) == 2 {
-		pkg = os.Args[1]
+	if args := flag.Args(); len(args) == 2 {
+		pkg = args[1]
 	} else {
 		wd, err := os.Getwd()
 		if err != nil {
@@ -390,6 +396,10 @@ func (t *tester) Test() {
 		// that message is not expected to appear. That implies one of the
 		// mutator build a code tree that doesn't compile. Ideally we could
 		// report the code generated and why it didn't compile.
+		if *diffonlyinvalid {
+			t.PrintDiff(baseName)
+			return
+		}
 		fmt.Println("invalid build")
 		return
 	}
@@ -408,8 +418,15 @@ func (t *tester) Test() {
 	}
 	t.result.alive++
 
+	if !*diffonlyinvalid {
+		t.PrintDiff(baseName)
+	}
+
+}
+
+func (t *tester) PrintDiff(baseName string) {
 	// Print the diff of the old and new file to the user.
-	cmd = exec.Command("diff", "-u",
+	cmd := exec.Command("diff", "-u",
 		filepath.Join(t.originalDir, baseName),
 		filepath.Join(t.mutantDir, baseName))
 	cmd.Stdout = os.Stdout

@@ -670,7 +670,6 @@ func floatComparisonInverter(expr *ast.Expr, parseInfo ParseInfo, node ast.Node,
 
 			*expr = old
 
-			printPos(parseInfo, *expr)
 		}
 	case *ast.UnaryExpr:
 		if e.Op != token.NOT {
