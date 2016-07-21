@@ -710,11 +710,7 @@ func isString(parseInfo ParseInfo, expr ast.Expr) bool {
 		return false
 	}
 
-	if b.Kind() != types.String {
-		return false
-	}
-
-	return true
+	return b.Kind() == types.String || b.Kind() == types.UntypedString
 }
 
 // printPos is a debug function that allows me to quickly see the position of a
