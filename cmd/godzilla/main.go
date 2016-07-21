@@ -344,7 +344,7 @@ func (w worker) Mutate(c chan godzilla.Mutator) {
 				return
 			}
 			if err = format.Node(file, fset, astFile); err != nil {
-				fmt.Fprintln(os.Stderr, "Error printing %s: %s\n", baseName, err.Error())
+				fmt.Fprintf(os.Stderr, "Error printing %s: %s\n", baseName, err.Error())
 				return
 			}
 		}
@@ -415,7 +415,7 @@ func (t *tester) Test() {
 		return
 	}
 	if err = format.Node(file, t.fset, t.astFile); err != nil {
-		fmt.Fprintln(os.Stderr, "Error printing %s: %s\n", baseName, err.Error())
+		fmt.Fprintf(os.Stderr, "Error printing %s: %s\n", baseName, err.Error())
 		return
 	}
 

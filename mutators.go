@@ -12,43 +12,43 @@ import (
 
 // Mutators maps command line names to their mutators.
 var Mutators = map[string]Desc{
-	"voidrm": Desc{
+	"voidrm": {
 		M:           VoidCallRemoverMutator,
 		Description: "Removes void function call.",
 	},
-	"swapifelse": Desc{
+	"swapifelse": {
 		M:           SwapIfElse,
 		Description: "Swaps content of if/else statements.",
 	},
-	"swapswitch": Desc{
+	"swapswitch": {
 		M:           SwapSwitchCase,
 		Description: "Swaps switch case conditions.",
 	},
-	"condbound": Desc{
+	"condbound": {
 		M:           ConditionalsBoundaryMutator,
 		Description: "Adds or remove an equal sign in comparison operators.",
 	},
-	"mathop": Desc{
+	"mathop": {
 		M:           MathMutator,
 		Description: "Swaps various mathematical operators. (eg. + to -)",
 	},
-	"boolop": Desc{
+	"boolop": {
 		M:           BooleanOperatorsMutator,
 		Description: "Changes && to || and vice versa.",
 	},
-	"mathopassign": Desc{
+	"mathopassign": {
 		M:           MathAssignMutator,
 		Description: "Same as the math mutator but for assignements.",
 	},
-	"negcond": Desc{
+	"negcond": {
 		M:           NegateConditionalsMutator,
 		Description: "Swaps comparison operators to their inverse (eg. == to !=)",
 	},
-	"floatcompinv": Desc{
+	"floatcompinv": {
 		M:           FloatComparisonInverter,
 		Description: "Invert floating point comparisons. eg. `(f0 == f1)` to `!(f0 != f1)`",
 	},
-	"inspect": Desc{
+	"inspect": {
 		M: DebugInspect,
 		// This mutator is there so dev can inspect ast.Node structure, it's not
 		// actually a mutator
@@ -469,6 +469,8 @@ func NegateConditionalsMutator(parseInfo ParseInfo, node ast.Node, tester Tester
 	expr.Op = old
 }
 
+// DebugInspect is a dev mutator used to inspect the ast.Node hierarchy of the
+// ast tree.
 func DebugInspect(parseInfo ParseInfo, node ast.Node, tester Tester) {
 
 }
