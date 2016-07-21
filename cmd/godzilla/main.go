@@ -123,6 +123,12 @@ Flags:
 // sanityCheck verifies that the pkg we are trying to mutest compiles and that
 // the tests pass.
 func sanityCheck(cfg config) {
+	{ // verify we have the diff program
+		if _, err := exec.LookPath("diff"); err != nil {
+			fmt.Fprintln(os.Stderr, "the program `diff` was not found in path")
+			os.Exit(1)
+		}
+	}
 	{ // verify it compiles
 		cmd := exec.Command("go", "build", cfg.pkg)
 		cmd.Stderr = os.Stderr
@@ -132,7 +138,12 @@ func sanityCheck(cfg config) {
 			os.Exit(1)
 		}
 		// remove any binary generated
-		exec.Command("go", "clean").Run()
+		cmd = exec.Command("go", "clean")
+		cmd.Stderr = os.Stderr
+		if err = cmd.Run(); err != nil {
+			fmt.Fprintln(os.Stderr, "Error running `go clean` after `go build`, we're very sorry if we generated any file in your package.")
+			os.Exit(1)
+		}
 	}
 	{ // verify tests pass
 		cmd := exec.Command("go", "test", "-short", cfg.pkg)
