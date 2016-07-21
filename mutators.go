@@ -298,7 +298,11 @@ func MathMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
 	}
 
 	switch expr.Op {
-	case token.ADD, token.SUB:
+	case token.ADD:
+		if isZero(expr.X) || isZero(expr.Y) || isString(parseInfo, expr.X) {
+			return
+		}
+	case token.SUB:
 		if isZero(expr.X) || isZero(expr.Y) {
 			return
 		}
@@ -706,6 +710,24 @@ func isOne(e ast.Expr) bool {
 	default:
 	}
 	return false
+}
+
+func isString(parseInfo ParseInfo, expr ast.Expr) bool {
+	t, ok := parseInfo.TypesInfo.Types[expr]
+	if !ok {
+		return false
+	}
+
+	b, ok := t.Type.(*types.Basic)
+	if !ok {
+		return false
+	}
+
+	if b.Kind() != types.String {
+		return false
+	}
+
+	return true
 }
 
 // printPos is a debug function that allows me to quickly see the position of a

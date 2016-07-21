@@ -7,6 +7,8 @@ var (
 )
 
 func FloatComparisonInvert() {
+	var n string
+	_ = n + ""
 	var f0, f1 float32
 	var g0, g1 float64
 	var b bool
