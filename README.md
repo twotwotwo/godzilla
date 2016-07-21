@@ -1,20 +1,23 @@
 # godzilla
 <img src="https://github.com/hydroflame/godzilla/blob/master/doc/gopher.png" width="128">
 
-godzilla is a mutation testing tool for Go package. 
+godzilla is a mutation testing tool for Go package.
 
-It is stil very much WIP but if you'd like to try it
+It is still very much WIP but if you'd like to try it
 
     $ go get -u github.com/hydroflame/godzilla/cmd/godzilla
-    
-then to run it:
+
+Then to run it:
 
     $ godzilla [PACKAGE]
 
 ## Mutators
 
 ### Swap If Else
-The Swap If Else mutator swaps the body of an if/else statement
+The Swap If Else mutator swaps the body of an if/else statement.
+
+### Swap Switch Case
+The Swap Switch Case mutator swaps each case body with the next.
 
 ### Void Call Remover
 The void call remover removes all the void function call.
