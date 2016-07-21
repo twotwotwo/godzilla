@@ -142,7 +142,14 @@ func VoidCallRemoverMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
 			}
 
 			exprs := make([]ast.Expr, len(call.Args)+1)
-			exprs[0] = call.Fun
+			if parseInfo.TypesInfo.Types[call.Fun].IsBuiltin() {
+				exprs[0] = &ast.BasicLit{
+					Kind:  token.STRING,
+					Value: "\"(builtin)\"",
+				}
+			} else {
+				exprs[0] = call.Fun
+			}
 			copy(exprs[1:], call.Args)
 
 			blankAssign := &ast.AssignStmt{
