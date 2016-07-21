@@ -136,7 +136,22 @@ func VoidCallRemoverMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
 
 		mutation := make([]ast.Stmt, len(block.List))
 		copy(mutation, block.List)
-		mutation = mutation[:i+copy(mutation[i:], mutation[i+1:])]
+
+		if call, ok := expr.X.(*ast.CallExpr); ok && len(call.Args) > 0 {
+			blanks := make([]ast.Expr, len(call.Args))
+			for j := range blanks {
+				blanks[j] = &ast.Ident{Name: "_"}
+			}
+			blankAssign := &ast.AssignStmt{
+				Lhs: blanks,
+				Tok: token.ASSIGN,
+				Rhs: call.Args,
+			}
+			mutation[i] = blankAssign
+		} else {
+			mutation = mutation[:i+copy(mutation[i:], mutation[i+1:])]
+		}
+
 		old := block.List
 		block.List = mutation
 
