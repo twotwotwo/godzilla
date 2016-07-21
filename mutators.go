@@ -5,8 +5,9 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"golang.org/x/tools/cover"
 	"regexp"
+
+	"golang.org/x/tools/cover"
 )
 
 // Mutators maps command line names to their mutators.
