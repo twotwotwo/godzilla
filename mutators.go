@@ -31,9 +31,9 @@ var Mutators = map[string]Desc{
 		Name:        "condbound",
 		Description: "Adds or remove an equal sign in comparison operators.",
 	},
-	"math": Desc{
+	"mathop": Desc{
 		M:           MathMutator,
-		Name:        "math",
+		Name:        "mathop",
 		Description: "Swaps various mathematical operators. (eg. + to -)",
 	},
 	"boolop": Desc{
@@ -41,15 +41,20 @@ var Mutators = map[string]Desc{
 		Name:        "boolop",
 		Description: "Changes && to || and vice versa.",
 	},
-	"mathassign": Desc{
+	"mathopassign": Desc{
 		M:           MathAssignMutator,
-		Name:        "mathassign",
+		Name:        "mathopassign",
 		Description: "Same as the math mutator but for assignements.",
 	},
 	"negcond": Desc{
 		M:           NegateConditionalsMutator,
 		Name:        "negcond",
 		Description: "Swaps comparison operators to their inverse (eg. == to !=)",
+	},
+	"floatcompinv": Desc{
+		M:           FloatComparisonInverter,
+		Name:        "floatcompinv",
+		Description: "Invert floating point comparisons. eg. `(f0 == f1)` to `!(f0 != f1)`",
 	},
 }
 

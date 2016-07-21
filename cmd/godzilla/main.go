@@ -28,6 +28,8 @@ import (
 
 var (
 	diffonlyinvalid = flag.Bool("diffonlyinvalid", false, "debug flag, this prints only the invalid builds produced")
+	mutationFlag    = flag.String("mutations", "", "the list of mutation to execute, comma separated")
+	helpFlag        = flag.Bool("help", false, "Display help message")
 )
 
 type config struct {
@@ -39,9 +41,34 @@ type config struct {
 
 	// A reference to the user gopath
 	gopath string
+
+	mutations []godzilla.Mutator
 }
 
 func getRunConfig() config {
+	flag.Parse()
+
+	if *helpFlag {
+		var mutatorsHelp string
+		for _, desc := range godzilla.Mutators {
+			mutatorsHelp += fmt.Sprintf("			%s: %s\n", desc.Name, desc.Description)
+		}
+		fmt.Printf(`Usage of godzilla:
+	godzilla [flags] # runs on package in current directory
+	godzilla [flags] package # runs on that package in the $GOPATH
+Flags:
+	-help
+		display this message
+	-mutations string
+		comma separated list of mutations to execute, (default to all mutators)
+		The available mutations are:
+%s
+	-diffonlyinvalid
+		debug flag that displays the diff of invalid builds only
+`, mutatorsHelp)
+		os.Exit(0)
+	}
+
 	// Check that we have a GOPATH
 	gopath, exists := os.LookupEnv("GOPATH")
 	if !exists {
@@ -49,7 +76,6 @@ func getRunConfig() config {
 		os.Exit(1)
 	}
 
-	flag.Parse()
 	// find the package to mutest.
 	var pkg string
 	if args := flag.Args(); len(args) == 2 {
@@ -67,10 +93,29 @@ func getRunConfig() config {
 		// no need to use os.PathSeparator here because len(`/`) == len(`\`)
 		pkg = wd[len(gopath)+len(`/src/`):]
 	}
+
+	var mtrs []godzilla.Mutator
+	if *mutationFlag == "" {
+		for _, desc := range godzilla.Mutators {
+			mtrs = append(mtrs, desc.M)
+		}
+	} else {
+		names := strings.Split(*mutationFlag, ",")
+		for _, name := range names {
+			desc, ok := godzilla.Mutators[name]
+			if !ok {
+				fmt.Printf("Unknown mutator: %s\n", name)
+				os.Exit(1)
+			}
+			mtrs = append(mtrs, desc.M)
+		}
+	}
+
 	return config{
-		pkg:     pkg,
-		gopath:  gopath,
-		pkgFull: filepath.Join(gopath, "src", pkg),
+		pkg:       pkg,
+		gopath:    gopath,
+		pkgFull:   filepath.Join(gopath, "src", pkg),
+		mutations: mtrs,
 	}
 }
 
@@ -174,24 +219,9 @@ func main() {
 		close(results)
 	}()
 
-	// build all the mutators
-	mtrs := []godzilla.Mutator{
-		godzilla.SwapIfElse,
-		godzilla.ConditionalsBoundaryMutator,
-		godzilla.MathMutator,
-		godzilla.MathAssignMutator,
-		godzilla.VoidCallRemoverMutator,
-		godzilla.BooleanOperatorsMutator,
-		godzilla.NegateConditionalsMutator,
-		godzilla.FloatComparisonInverter,
-		godzilla.SwapSwitchCase,
-		//godzilla.ReturnValueMutator,
-		//godzilla.DebugInspect,
-	}
-
 	// build the "list" of mutators.
-	c := make(chan godzilla.Mutator, len(mtrs))
-	for _, mutator := range mtrs {
+	c := make(chan godzilla.Mutator, len(cfg.mutations))
+	for _, mutator := range cfg.mutations {
 		c <- mutator
 	}
 	close(c)
