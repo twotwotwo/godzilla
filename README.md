@@ -1,4 +1,4 @@
-# godzilla
+# godzilla ![build status](https://travis-ci.org/hydroflame/godzilla.svg?branch=master)
 <img src="https://github.com/hydroflame/godzilla/blob/master/doc/gopher.png" width="128">
 
 godzilla is a mutation testing tool for Go package.
