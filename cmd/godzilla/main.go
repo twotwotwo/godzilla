@@ -155,11 +155,11 @@ func sanityCheck(cfg config) {
 			if !strings.HasSuffix(finfo.Name(), ".go") {
 				continue
 			}
-			cmd := exec.Command("gofmt", "-s", "-d", filepath.Join(cfg.pkgFull, finfo.Name()))
+			cmd := exec.Command("gofmt", "-d", filepath.Join(cfg.pkgFull, finfo.Name()))
 			var b bytes.Buffer // need a buffer because gofmt doesn't return non-zero on diff
 			cmd.Stdout = &b
 			if err := cmd.Run(); err != nil || b.Len() > 0 {
-				fmt.Printf("gofmt your package before running godzilla\n	gofmt -s -w %s\n", filepath.Join(cfg.pkgFull, "*go"))
+				fmt.Printf("gofmt your package before running godzilla\n	gofmt -w %s\n", filepath.Join(cfg.pkgFull, "*go"))
 				os.Exit(1)
 			}
 		}
