@@ -1,0 +1,12 @@
+language: go
+
+go:
+  - 1.6.3
+
+go_import_path: github.com/hydroflame/godzilla
+
+install:
+  - go get golang.org/x/tools/cover
+
+script:
+ - go build ./...
