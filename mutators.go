@@ -14,55 +14,51 @@ import (
 var Mutators = map[string]Desc{
 	"voidrm": Desc{
 		M:           VoidCallRemoverMutator,
-		Name:        "voidrm",
 		Description: "Removes void function call.",
 	},
 	"swapifelse": Desc{
 		M:           SwapIfElse,
-		Name:        "swapifelse",
 		Description: "Swaps content of if/else statements.",
 	},
 	"swapswitch": Desc{
 		M:           SwapSwitchCase,
-		Name:        "swapswitchcase",
 		Description: "Swaps switch case conditions.",
 	},
 	"condbound": Desc{
 		M:           ConditionalsBoundaryMutator,
-		Name:        "condbound",
 		Description: "Adds or remove an equal sign in comparison operators.",
 	},
 	"mathop": Desc{
 		M:           MathMutator,
-		Name:        "mathop",
 		Description: "Swaps various mathematical operators. (eg. + to -)",
 	},
 	"boolop": Desc{
 		M:           BooleanOperatorsMutator,
-		Name:        "boolop",
 		Description: "Changes && to || and vice versa.",
 	},
 	"mathopassign": Desc{
 		M:           MathAssignMutator,
-		Name:        "mathopassign",
 		Description: "Same as the math mutator but for assignements.",
 	},
 	"negcond": Desc{
 		M:           NegateConditionalsMutator,
-		Name:        "negcond",
 		Description: "Swaps comparison operators to their inverse (eg. == to !=)",
 	},
 	"floatcompinv": Desc{
 		M:           FloatComparisonInverter,
-		Name:        "floatcompinv",
 		Description: "Invert floating point comparisons. eg. `(f0 == f1)` to `!(f0 != f1)`",
+	},
+	"inspect": Desc{
+		M: DebugInspect,
+		// This mutator is there so dev can inspect ast.Node structure, it's not
+		// actually a mutator
+		Description: "",
 	},
 }
 
 // Desc represents a specific description of a mutator.
 type Desc struct {
 	M           Mutator
-	Name        string
 	Description string
 }
 
@@ -453,21 +449,7 @@ func NegateConditionalsMutator(parseInfo ParseInfo, node ast.Node, tester Tester
 }
 
 func DebugInspect(parseInfo ParseInfo, node ast.Node, tester Tester) {
-	assign, ok := node.(*ast.AssignStmt)
-	if !ok {
-		return
-	}
 
-	pos := parseInfo.FileSet.Position(assign.Pos())
-	fmt.Println(pos)
-
-	if len(assign.Lhs) == 1 {
-		ident, ok := assign.Lhs[0].(*ast.Ident)
-		if !ok {
-			return
-		}
-		fmt.Printf("%#v\n", ident)
-	}
 }
 
 // ReturnValueMutator changes various return value. (eg. numbers become zero)

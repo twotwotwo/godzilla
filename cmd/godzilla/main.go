@@ -50,8 +50,11 @@ func getRunConfig() config {
 
 	if *helpFlag {
 		var mutatorsHelp string
-		for _, desc := range godzilla.Mutators {
-			mutatorsHelp += fmt.Sprintf("			%s: %s\n", desc.Name, desc.Description)
+		for name, desc := range godzilla.Mutators {
+			if name == "inspect" {
+				continue
+			}
+			mutatorsHelp += fmt.Sprintf("			%s: %s\n", name, desc.Description)
 		}
 		fmt.Printf(`Usage of godzilla:
 	godzilla [flags] # runs on package in current directory
@@ -63,10 +66,6 @@ Flags:
 		comma separated list of mutations to execute, (default to all mutators)
 		The available mutations are:
 %s
-
-Debug flags:
-	-diffonlyinvalid
-		display the diff of invalid builds only
 `, mutatorsHelp)
 		os.Exit(0)
 	}
