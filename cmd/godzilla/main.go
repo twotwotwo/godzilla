@@ -63,8 +63,10 @@ Flags:
 		comma separated list of mutations to execute, (default to all mutators)
 		The available mutations are:
 %s
+
+Debug flags:
 	-diffonlyinvalid
-		debug flag that displays the diff of invalid builds only
+		display the diff of invalid builds only
 `, mutatorsHelp)
 		os.Exit(0)
 	}
