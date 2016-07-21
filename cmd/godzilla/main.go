@@ -56,7 +56,24 @@ func getRunConfig() config {
 			}
 			mutatorsHelp += fmt.Sprintf("			%s: %s\n", name, desc.Description)
 		}
-		fmt.Printf(`Usage of godzilla:
+		fmt.Printf(`
+godzilla is a mutestion testing tool for go packages. The goal of mutation
+testing is to give a metric for the quality of your test suite. godzilla will
+try to modify your code in subtle way. A change applied to your codebase is
+called a mutation. A classic example of possible mutations is to change a + sign
+to a - sign. After applying the mutation godzilla re-runs your tests. If they
+fail that means the test suite is able to detect the mutation successfully. If
+the tests pass that means the test suite does not test that statement properly.
+Mutation are displayed in "diff -u" form. Code that is not covered will not be
+mutated. godzilla creates multiple workers to perform it's work in parallel, it
+copies the target package source in temporary directory to avoid corrupting the
+original code. Sometimes godzilla will generate mutants that have the same
+behavior as the original. It will try to avoid these as much as possible but
+this problem is called the program equivalency problem and is a well known
+undecideable problem. godzilla still tries to analyse your code to detect a
+maximum number of equivalent mutant.
+
+Usage of godzilla:
 	godzilla [flags] # runs on package in current directory
 	godzilla [flags] package # runs on that package in the $GOPATH
 Flags:
