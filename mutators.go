@@ -5,9 +5,8 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"regexp"
-
 	"golang.org/x/tools/cover"
+	"regexp"
 )
 
 // Mutators maps command line names to their mutators.
@@ -135,11 +134,26 @@ func VoidCallRemoverMutator(parseInfo ParseInfo, node ast.Node, tester Tester) {
 			continue
 		}
 
-		mutation := make([]ast.Stmt, len(block.List))
-		copy(mutation, block.List)
-		mutation = mutation[:i+copy(mutation[i:], mutation[i+1:])]
-		old := block.List
-		block.List = mutation
+                mutation := make([]ast.Stmt, len(block.List))
+                copy(mutation, block.List)
+                old := block.List
+
+                if call, ok := expr.X.(*ast.CallExpr); ok && len(call.Args) > 0 {
+                        blanks := make([]ast.Expr, len(call.Args))
+                        for j := range blanks {
+                            blanks[j] = &ast.Ident{Name: "_"}
+                        }
+                        blankAssign := &ast.AssignStmt{
+                            Lhs: blanks,
+                            Tok: token.ASSIGN,
+                            Rhs: call.Args,
+                        }
+                        mutation[i] = blankAssign
+                } else {
+                        mutation = mutation[:i+copy(mutation[i:], mutation[i+1:])]
+                }
+
+                block.List = mutation
 
 		tester.Test()
 
