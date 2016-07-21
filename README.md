@@ -1,4 +1,5 @@
 # godzilla
+<img src="https://github.com/hydroflame/godzilla/blob/master/doc/gopher.png" width="128">
 
 godzilla is a mutation testing tool for Go package. 
 
